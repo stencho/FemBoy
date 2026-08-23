@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RatGB", "RatGB\RatGB.csproj", "{4547206C-D107-4FDB-9345-D2B7F1CC4C2C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RatGBLib", "RatGBLib\RatGBLib.csproj", "{02D58064-24DB-403A-918A-A9FC79B25FB1}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4547206C-D107-4FDB-9345-D2B7F1CC4C2C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4547206C-D107-4FDB-9345-D2B7F1CC4C2C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4547206C-D107-4FDB-9345-D2B7F1CC4C2C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4547206C-D107-4FDB-9345-D2B7F1CC4C2C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{02D58064-24DB-403A-918A-A9FC79B25FB1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{02D58064-24DB-403A-918A-A9FC79B25FB1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{02D58064-24DB-403A-918A-A9FC79B25FB1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{02D58064-24DB-403A-918A-A9FC79B25FB1}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
