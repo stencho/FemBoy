@@ -12,7 +12,7 @@ public class Timer {
     
     public Timer(GameBoy gameboy) => this.gameboy = gameboy;
     
-    private ushort divider = 0;
+    private ushort divider = 0xABCC;
     public byte DIV => (byte)(divider >> 8);
 
     public byte TIMA = 0x00;
@@ -20,29 +20,30 @@ public class Timer {
     public byte TAC = 0x00;
 
     private bool TIMA_reload_pending = false;
-    private int  TIMA_reload_delay = 0;
+    public bool ReloadPending => TIMA_reload_pending;
+    private int  TIMA_reload_delay = 4;
     
-    public void Execute(int cycles) {
-        for (int i = 0; i < cycles; i++) {
-            bool old_timer_signal = GetTimerSignal();
-            divider++;
-            bool timer_signal = GetTimerSignal();
-
-            if (old_timer_signal && !timer_signal) IncrementTIMA();
-            
-            if (TIMA_reload_pending) {
-                
+    public int ReloadDelay => TIMA_reload_delay;
+    
+    public void Execute() {
+        if (TIMA_reload_pending) {
+            if (TIMA_reload_delay == 0) {
+                TIMA_reload_pending = false;
+            } else {
                 TIMA_reload_delay--;
+            
                 if (TIMA_reload_delay == 0) {
-                    
                     TIMA = TMA;
-                    gameboy.RequestInterrupt((int)CPU.InterruptMask.Timer);
-                    TIMA_reload_pending = false;
-                    
+                    gameboy.RequestInterrupt(CPU.InterruptMask.Timer);
                 }
             }
-            
         }
+    
+        bool old_timer_signal = GetTimerSignal();
+        divider++;
+        bool timer_signal = GetTimerSignal();
+
+        if (old_timer_signal && !timer_signal) IncrementTIMA();
     }
 
     public void CancelPendingTIMAReload(byte value) {
@@ -52,14 +53,29 @@ public class Timer {
         TIMA_reload_delay = 0;
     }
     
+    public uint last_tima_increment = 0;
+    
     void IncrementTIMA() {
-        if (TIMA_reload_pending) return;
+        //Console.WriteLine($"TIMA PERIOD = {gameboy.TotalCycles - last_tima_increment}");
+        
+        if (TIMA_reload_pending) {
+            if (TIMA_reload_delay > 0) {
+                TIMA_reload_pending = false;
+                TIMA_reload_delay = 0;
+                TIMA = 0;
+                return;
+            } else {
+                TIMA = TMA;
+                return;
+            }
+        }
+
+        last_tima_increment = gameboy.TotalCycles;
         
         if (TIMA == 0xFF) {
             TIMA = 0x00;
             TIMA_reload_pending = true;
             TIMA_reload_delay = 4;
-            
         } else TIMA++;
     }
     
@@ -67,7 +83,6 @@ public class Timer {
         bool old = GetTimerSignal();
         divider = 0;
         bool signal = GetTimerSignal();
-        
         if (old && !signal) IncrementTIMA();
     }
     
@@ -75,8 +90,6 @@ public class Timer {
         bool old_signal = GetTimerSignal();
         TAC = (byte)(value & 0x07);
         bool new_signal = GetTimerSignal();
-        
-        
         if (old_signal && !new_signal) IncrementTIMA();
     }
     
@@ -88,9 +101,9 @@ public class Timer {
             1 => 3,
             2 => 5,
             3 => 7,
-            _ => throw new IndexOutOfRangeException()
+            _ => 0
         };
 
-        return ((divider >> bit) & 1) != 0;
+        return ((divider >> bit) & 1) == 1;
     }
 }

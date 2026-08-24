@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -18,7 +19,7 @@ public class Game1 : Game {
     
     private Color[] memory_colors = new Color[256 * 256];
     private Color[] frame_buffer = new Color[160 * 144];
-
+    
     private Input input = new Input();
     
     public Game1() {
@@ -32,18 +33,47 @@ public class Game1 : Game {
         
         IsFixedTimeStep = true;
         
+        Console.SetOut(TextWriter.Null);
+        
         //gb.LoadROM("gbmicrotest/000-write_to_x8000.gb");
         //gb.LoadROM("bully.gb");
         //gb.LoadROM("alley.gb");
         
         //gb.LoadROM("tetris.gb");
-        //gb.LoadROM("kirby.gb");
+        gb.LoadROM("kirby.gb");
         //gb.LoadROM("zelda.gb");
         //gb.LoadROM("buttontest.gb");
         //gb.LoadROM("int.gb");
+        
+        
+        //gb.LoadROM("mooneye-test-suite/acceptance/timer/rapid_toggle.gb");
+        //gb.LoadROM("mooneye-test-suite/emulator-only/mbc1/ram_64kb.gb");
+        
+        //gb.LoadROM("mooneye-test-suite/acceptance/timer/tma_write_reloading.gb");
         //gb.LoadROM("mooneye-test-suite/acceptance/timer/tima_write_reloading.gb");
-        gb.LoadROM("mooneye-test-suite/acceptance/push_timing.gb");
+        //gb.LoadROM("mooneye-test-suite/acceptance/timer/div_write.gb");
+        //gb.LoadROM("mooneye-test-suite/acceptance/timer/tima_reload.gb");
+        
+        //gb.LoadROM("mooneye-test-suite/acceptance/push_timing.gb");
+        //gb.LoadROM("mooneye-test-suite/acceptance/pop_timing.gb");
+        //gb.LoadROM("mooneye-test-suite/acceptance/oam_dma/sources-GS.gb");
+        
+        //gb.LoadROM("blargg/instr_timing/instr_timing.gb");
+        //gb.LoadROM("blargg/halt_bug.gb");
+        
         //gb.LoadROM("blargg/cpu_instrs/cpu_instrs.gb");
+        //gb.LoadROM("blargg/cpu_instrs/individual/01-special.gb");
+        //gb.LoadROM("blargg/cpu_instrs/individual/02-interrupts.gb");
+        //gb.LoadROM("blargg/cpu_instrs/individual/03-op sp,hl.gb");
+        //gb.LoadROM("blargg/cpu_instrs/individual/04-op r,imm.gb");
+        //gb.LoadROM("blargg/cpu_instrs/individual/05-op rp.gb");
+        //gb.LoadROM("blargg/cpu_instrs/individual/06-ld r,r.gb");
+        //gb.LoadROM("blargg/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb");
+        //gb.LoadROM("blargg/cpu_instrs/individual/08-misc instrs.gb");
+        //gb.LoadROM("blargg/cpu_instrs/individual/09-op r,r.gb");
+        //gb.LoadROM("blargg/cpu_instrs/individual/10-bit ops.gb");
+        //gb.LoadROM("blargg/cpu_instrs/individual/11-op a,(hl).gb");
+        
         //gb.LoadROM("hb.gb");
     }
 
@@ -85,6 +115,7 @@ public class Game1 : Game {
     protected override void Draw(GameTime gameTime) {
         GraphicsDevice.Clear(Color.CornflowerBlue);
 
+        
         for (int c = 0; c < 160 * 144; c++) {
             byte b = gb.PPU.frame_buffer[c];
             switch (b) {
@@ -125,6 +156,9 @@ public class Game1 : Game {
         _spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.PointClamp);
         _spriteBatch.Draw(memory_texture, new Rectangle(0, 0, 512, 512), Color.White);
         _spriteBatch.Draw(frame_texture, new Rectangle(512, 0, 160 * 3, 144 * 3), Color.White);
+        
+        
+        
         _spriteBatch.End();
         // TODO: Add your drawing code here
 

@@ -12,7 +12,7 @@ public class GameBoy {
     public readonly byte[] RAM =  new byte[0x10000];
     
 
-    private Cartridge cartridge;
+    public Cartridge cartridge;
     
     /*
        0000–3FFF    16 KiB cartridge ROM bank 0
@@ -31,6 +31,7 @@ public class GameBoy {
     
     public PPU PPU;
     public CPU CPU;
+    public DMA DMA;
 
     public Timer timer;
     
@@ -39,7 +40,8 @@ public class GameBoy {
     public GameBoy() {
         PPU = new PPU(this);
         CPU = new CPU(this);
-
+        DMA = new DMA(this);
+        
         timer = new Timer(this);
         
         joypad = new Joypad(this);
@@ -97,9 +99,11 @@ public class GameBoy {
         WriteByte(0xFFFF, 0x00); // IE (Interrupt Enable)
     }
     
+    public uint last_tima_read = 0;
+    public uint last_tima_write = 0;
     public byte ReadByte(ushort address) {
-        if (address == 0xFF0F) return CPU.REGISTERS.IF;
-        if (address == 0xFFFF) return CPU.REGISTERS.IE;
+        if (address == 0xFF0F) return (byte)(CPU.REGISTERS.IF | 0xE0);
+        if (address == 0xFFFF) return (byte)(CPU.REGISTERS.IE | 0xE0);
         
         if (address == (ushort)PPURegisterAddresses.LCDC) return PPU.LCDC;
         
@@ -132,23 +136,17 @@ public class GameBoy {
             if (PPU.Mode == PPU.STATMode.LCD_TRANSFER) 
                 return 0xFF;
         
-        if (address >= 0xFE00 && address <= 0xFE9F) {
-            if (PPU.Mode == PPU.STATMode.OAM_SEARCH ||
-                PPU.Mode == PPU.STATMode.LCD_TRANSFER)
-                return 0xFF;
+        if (address >= 0xE000 && address <= 0xFDFF) return RAM[address - 0x2000];
+
+        if (address == (ushort)PPURegisterAddresses.DMA) {
+            return DMA.Register;
         }
         
-        return RAM[address];
-    }
-    
-    public byte ReadVRAM(ushort address) {
-        if (address < 0x8000 || address > 0x9FFF) 
-            throw new ArgumentOutOfRangeException(nameof(address));
-        return RAM[address];
-    }
-    public byte ReadOAM(ushort address) {
-        if (address < 0xFE00 || address > 0xFE9F) 
-            throw new ArgumentOutOfRangeException(nameof(address));
+        if (address == 0xFF85)
+            Console.WriteLine(
+                $"HRAM READ FF85={RAM[address]:X2} " +
+                $"PC={CPU.REGISTERS.PC:X4} " +
+                $"T={TotalCycles}");
         return RAM[address];
     }
     
@@ -158,7 +156,7 @@ public class GameBoy {
             return;
         }
         if (address == 0xFFFF) {
-            CPU.REGISTERS.IE = value;
+            CPU.REGISTERS.IE = (byte)(value & 0x1F);
             return;
         }
 
@@ -211,13 +209,28 @@ public class GameBoy {
             return;
         }
 
-        if (address == (ushort)TimerRegisterAddresses.TIMA) {
-            timer.CancelPendingTIMAReload(value);
+        if (address == (ushort)TimerRegisterAddresses.TIMA) { 
+            Console.WriteLine(
+                $"TIMA WRITE: " +
+                $"T={TotalCycles} DELTA={TotalCycles - last_tima_write} " +
+                $"value={value:X2}");
+            last_tima_write = TotalCycles;
+            if (timer.ReloadPending) {
+                if (timer.ReloadDelay > 0) {
+                    timer.CancelPendingTIMAReload(value);
+                } else {
+                    timer.TIMA = timer.TMA;
+                }
+            } else {
+                timer.TIMA = value;
+            }
+            
             return;
         }
         
         if (address == (ushort)TimerRegisterAddresses.TMA) {
             timer.TMA = value;
+            if (timer.ReloadPending && (timer.ReloadDelay == 0 || timer.ReloadDelay == 1)) timer.TIMA = value;
             return;
         }
         
@@ -227,14 +240,12 @@ public class GameBoy {
         }
         
         if (address == (ushort)PPURegisterAddresses.DMA) {
-            ushort source = (ushort)(value << 8);
-            ushort target = 0xFE00;
-
-            for (int i = 0; i < 160; i++) {
-                byte data = ReadByte((ushort)(source + i));
-                RAM[target+i] = data;
-            }
-            
+            DMA.Register = value;
+            Console.WriteLine(
+                $"DMA START {address:X4} = {value:X2} " +
+                $"T={TotalCycles} active={DMA.Active}"
+            );
+            DMA.Start(value);
             return;
         }
         
@@ -250,7 +261,7 @@ public class GameBoy {
             return;
         }
         
-        if (address < 0x8000) {
+        if (address < 0x8000 || (address >= 0xA000 && address < 0xC000)) {
             cartridge.Write(address, value);
             return;
         }
@@ -261,60 +272,50 @@ public class GameBoy {
     public byte ReadByte(PPURegisterAddresses address) => ReadByte((ushort)address);
     public void WriteByte(PPURegisterAddresses address, byte value) => WriteByte((ushort)address, value);
     
-    public ushort ReadU16(ref ushort address) {
-        byte lo = ReadByte(address++);
-        byte hi = ReadByte(address++);
-        return (ushort)((hi << 8) | lo);
+    public byte ReadVRAM(ushort address) {
+        if (address < 0x8000 || address > 0x9FFF) 
+            throw new ArgumentOutOfRangeException(nameof(address));
+        return RAM[address];
+    }
+    public byte ReadOAM(ushort address) {
+        if (address < 0xFE00 || address > 0xFE9F) 
+            throw new ArgumentOutOfRangeException(nameof(address));
+        return RAM[address];
+    }
+    public void WriteOAM(int index, byte value) {
+        RAM[0xFE00 + index] = value;
     }
     
-    public void PushU16(ref ushort SP, ushort value) {
-        
-        SP--;
-        WriteByte(SP, (byte)(value >> 8));
-        Tick(4);
-        
-        SP--;
-        WriteByte(SP, (byte)value);
-        Tick(4);
-        
-        Tick(4);
-        Tick(4);
-    }
-    
-    public ushort PopU16(ref ushort SP) {
-        byte lo = ReadByte(SP);
-        Tick(4);
-        byte hi = ReadByte((ushort)(SP + 1));
-        Tick(4);
-        ushort value = (ushort)(lo | (hi << 8));
-        
-        SP += 2;
-        Tick(4);
-        return value;
-    }
-    
-    public void RequestInterrupt(int bit) {
-        CPU.REGISTERS.IF |= (byte)(1 << bit);
+    public void RequestInterrupt(CPU.InterruptMask interrupt) {
+        Console.WriteLine(
+            $"IRQ REQUEST {interrupt} " +
+            $"PC={CPU.REGISTERS.PC:X4} " +
+            $"T={TotalCycles}");
+        CPU.REGISTERS.IF |= (byte)interrupt;
     }
     
     public void LoadROM(string file_name) {
-        cartridge = new Cartridge();
-        using (FileStream file = new(file_name, FileMode.Open)) {
-            cartridge.ROM = new byte[file.Length];
-            file.ReadExactly(cartridge.ROM, 0, cartridge.ROM.Length);
-        }
+        cartridge = new Cartridge(file_name);
     }
 
+    public int CyclesThisFrame = 0;
+    public uint TotalCycles = 0;
+    
     public void Tick(int cycles) {
-        if (cycles == 0) return;
-        timer.Execute(cycles);
-        PPU.Execute(cycles);
+        for (int i = 0; i < cycles; i++) {
+            TotalCycles++;
+            timer.Execute();
+            PPU.Execute();   
+            DMA.Execute();
+        }
+        CyclesThisFrame += cycles;
     }
     
     public int Execute() {
-        int cycles = 0;
-        cycles = CPU.Execute();
-        Tick(cycles);
+        CPU.Execute();
+        
+        int cycles = CyclesThisFrame;
+        CyclesThisFrame = 0;
         
         return cycles;
     }

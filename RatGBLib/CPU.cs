@@ -52,25 +52,25 @@ public class CPU {
     }
     
     private void IncrementAtAddress(GameBoy gameboy, ushort address) {
-        byte pre_increment = gameboy.ReadByte(address);
+        byte pre_increment = ReadByte(address);
         byte result = (byte)(pre_increment + 1);
 
         gameboy.CPU.REGISTERS.SetFlag(GBRegisters.Mask.Zero, result == 0);
         gameboy.CPU.REGISTERS.SetFlag(GBRegisters.Mask.Negative, false);
         gameboy.CPU.REGISTERS.SetFlag(GBRegisters.Mask.HalfCarry, (pre_increment & 0x0F) == 0x0F);
         
-        gameboy.WriteByte(address, result);
+        WriteByte(address, result);
     }
     
     private void DecrementAtAddress(GameBoy gameboy, ushort address) {
-        byte pre_decrement = gameboy.ReadByte(address);
+        byte pre_decrement = ReadByte(address);
         byte result = (byte)(pre_decrement - 1);
 
         gameboy.CPU.REGISTERS.SetFlag(GBRegisters.Mask.Zero, result == 0);
         gameboy.CPU.REGISTERS.SetFlag(GBRegisters.Mask.Negative, true);
         gameboy.CPU.REGISTERS.SetFlag(GBRegisters.Mask.HalfCarry, (pre_decrement & 0x0F) == 0);
         
-        gameboy.WriteByte(address, result);
+        WriteByte(address, result);
     }
 
     private ushort Add(ushort register_a, ushort register_b) {
@@ -199,8 +199,61 @@ public class CPU {
         register_a = (byte)result;
     }
     
+    public void PushU16(ref ushort SP, ushort value) {
+        gameboy.Tick(4);
+
+        ushort hi_addr = (ushort)(SP - 1);
+        WriteByte(hi_addr, (byte)(value >> 8));
+        
+        ushort lo_addr = (ushort)(SP - 2);
+        WriteByte(lo_addr, (byte)value);
+
+        SP -= 2;
+    }
+    
+    public ushort PopU16(ref ushort SP) {
+        byte lo = ReadByte(SP);
+        byte hi = ReadByte((ushort)(SP + 1));
+        ushort value = (ushort)(lo | (hi << 8));
+        
+        SP += 2;
+        return value;
+    }
+
+    public byte ReadByte(ushort address) {
+        byte value = 0;
+
+        Tick(3);
+        
+        if (gameboy.PPU.LCDEnabled &&
+            address >= 0xFE00 &&
+            address <= 0xFE9F &&
+            (gameboy.PPU.Mode == PPU.STATMode.OAM_SEARCH ||
+             gameboy.PPU.Mode == PPU.STATMode.LCD_TRANSFER)) {
+            value = 0xFF;
+        } else {
+            if (gameboy.DMA.Active && (address < 0xFF00 || address >= 0xFFFE)) value = 0xFF;
+            else value = gameboy.ReadByte(address);
+        }
+
+        Tick(1);
+        return value;
+    }
+
+    public void WriteByte(ushort address, byte value) {
+        Tick(3);
+        gameboy.WriteByte(address, value);
+        Tick(1);
+    }
+    
+    public ushort ReadU16(ref ushort address) {
+        byte lo = ReadByte(address++);
+        byte hi = ReadByte(address++);
+        return (ushort)((hi << 8) | lo);
+    }
+    
     private byte FetchOpcode() {
-        byte op = gameboy.ReadByte(REGISTERS.PC);
+        byte op = ReadByte(REGISTERS.PC);
 
         if (HALT_BUG) HALT_BUG = false;
         else REGISTERS.PC++;
@@ -208,73 +261,71 @@ public class CPU {
         return op;
     }
 
+    void Tick(int cycles) => gameboy.Tick(cycles);
+    
     private GameBoy gameboy;
     public CPU(GameBoy gameboy) => this.gameboy = gameboy;
     
-    private int ServiceInterrupt() {
+    private void ServiceInterrupt() {
+        Console.WriteLine(
+            $"IRQ SERVICE T={gameboy.TotalCycles} " +
+            $"IME={INTERRUPT_MASTER_ENABLE} IE={gameboy.ReadByte(0xFFFF):X2} " +
+            $"IF={gameboy.ReadByte(0xFF0F):X2}");
+        
         InterruptMask interrupt;
 
-        if (InterruptEnabled(InterruptMask.VBlank) &&
-            InterruptRequested(InterruptMask.VBlank))
-            interrupt = InterruptMask.VBlank;
-
-        else if (InterruptEnabled(InterruptMask.LCD) &&
-                 InterruptRequested(InterruptMask.LCD))
-            interrupt = InterruptMask.LCD;
-
-        else if (InterruptEnabled(InterruptMask.Timer) &&
-                 InterruptRequested(InterruptMask.Timer))
-            interrupt = InterruptMask.Timer;
-
-        else if (InterruptEnabled(InterruptMask.Serial) &&
-                 InterruptRequested(InterruptMask.Serial))
-            interrupt = InterruptMask.Serial;
-
-        else if (InterruptEnabled(InterruptMask.Joypad) &&
-                 InterruptRequested(InterruptMask.Joypad))
-            interrupt = InterruptMask.Joypad;
-        else
-            interrupt = 0;
+        if (InterruptEnabled(InterruptMask.VBlank) && InterruptRequested(InterruptMask.VBlank)) interrupt = InterruptMask.VBlank;
+        else if (InterruptEnabled(InterruptMask.LCD) && InterruptRequested(InterruptMask.LCD)) interrupt = InterruptMask.LCD;
+        else if (InterruptEnabled(InterruptMask.Timer) && InterruptRequested(InterruptMask.Timer)) interrupt = InterruptMask.Timer;
+        else if (InterruptEnabled(InterruptMask.Serial) && InterruptRequested(InterruptMask.Serial)) interrupt = InterruptMask.Serial;
+        else if (InterruptEnabled(InterruptMask.Joypad) && InterruptRequested(InterruptMask.Joypad)) interrupt = InterruptMask.Joypad;
+        else return;
         
+        Console.WriteLine(
+            $"SERVICING {interrupt} " +
+            $"T={gameboy.TotalCycles} PC={REGISTERS.PC:X4} SP={REGISTERS.SP:X4}");
         
+        Tick(4);
+    
         INTERRUPT_MASTER_ENABLE = false;
+        Tick(4);
+        
+        REGISTERS.SP--;
+        WriteByte(REGISTERS.SP, (byte)(REGISTERS.PC >> 8));
+
+        REGISTERS.SP--;
+        WriteByte(REGISTERS.SP, (byte)REGISTERS.PC);
+    
         REGISTERS.IF &= (byte)~interrupt;
-
-        gameboy.PushU16(ref REGISTERS.SP, REGISTERS.PC);
-
+        
         switch (interrupt) {
-            case InterruptMask.VBlank:
-                REGISTERS.PC = 0x0040;
-                break;
-
-            case InterruptMask.LCD:
-                REGISTERS.PC = 0x0048;
-                break;
-
-            case InterruptMask.Timer:
-                REGISTERS.PC = 0x0050;
-                break;
-
-            case InterruptMask.Serial:
-                REGISTERS.PC = 0x0058;
-                break;
-
-            case InterruptMask.Joypad:
-                REGISTERS.PC = 0x0060;
-                break;
+            case InterruptMask.VBlank: REGISTERS.PC = 0x0040; break;
+            case InterruptMask.LCD:    REGISTERS.PC = 0x0048; break;
+            case InterruptMask.Timer:  REGISTERS.PC = 0x0050; break;
+            case InterruptMask.Serial: REGISTERS.PC = 0x0058; break;
+            case InterruptMask.Joypad: REGISTERS.PC = 0x0060; break;
         }
-
-        return 4;
+    
+        Tick(4);
     }
     
-    public int Execute() {
-        
-        if (STOPPED)
-            return 4;
+    public void Execute() {
+        if (STOPPED) Tick(4);
 
         if (HALTED) {
-            if (InterruptPending) HALTED = false;
-            return 4;
+            if (InterruptPending) {
+                HALTED = false;
+                if (INTERRUPT_MASTER_ENABLE) Tick(4);
+                
+            } else {
+                Tick(4);
+                return; 
+            }
+        }
+        
+        if (INTERRUPT_MASTER_ENABLE && InterruptPending) {
+            ServiceInterrupt();
+            return;
         }
         
         if (ENABLE_INTERRUPT_DELAY > 0) {
@@ -286,40 +337,37 @@ public class CPU {
             }
         }
         
-        if (INTERRUPT_MASTER_ENABLE && InterruptPending) return ServiceInterrupt();
-        
         byte opcode = FetchOpcode();
-        
-        //Console.WriteLine($"PC_AFTER_FETCH = {REGISTERS.PC:X4} NEXT_OP = {opcode:X2} :: A:{REGISTERS.A:X2} B:{REGISTERS.B:X2} C:{REGISTERS.C:X2} D:{REGISTERS.D:X2} E:{REGISTERS.E:X2} H:{REGISTERS.H:X2} L:{REGISTERS.L:X2} :: FLAGS Z:{REGISTERS.GetFlag(GBRegisters.Mask.Zero):X} N:{REGISTERS.GetFlag(GBRegisters.Mask.Negative):X} H:{REGISTERS.GetFlag(GBRegisters.Mask.HalfCarry):X} C:{REGISTERS.GetFlag(GBRegisters.Mask.Carry):X}");
         
         switch (opcode) {
             // -------- 0x0x --------
             
-            case 0x00: return 4; // NOP
+            case 0x00: break; // NOP
             
             case 0x01: // LD BC, ushort
-                REGISTERS.BC = gameboy.ReadU16(ref REGISTERS.PC);
-                return 12;
+                REGISTERS.BC = ReadU16(ref REGISTERS.PC);
+                break;
             
             case 0x02: // LD (BC), A
-                gameboy.WriteByte(REGISTERS.BC, REGISTERS.A);
-                return 8;
+                WriteByte(REGISTERS.BC, REGISTERS.A);
+                break;
             
             case 0x03: // INC BC
                 REGISTERS.BC++;    
-                return 8;
+                Tick(4);
+                break;
 
             case 0x04: //INC B
                 Increment(ref REGISTERS.B);
-                return 4;
+                break;
             
             case 0x05: // DEC B
                 Decrement(ref REGISTERS.B);
-                return 4;
+                break;
             
             case 0x06: // LD B, (byte)
-                REGISTERS.B = gameboy.ReadByte(REGISTERS.PC++);
-                return 8;
+                REGISTERS.B = ReadByte(REGISTERS.PC++);
+                break;
 
             case 0x07: { // RLCA 
                 bool carry = (REGISTERS.A & 0x80) != 0;
@@ -329,39 +377,41 @@ public class CPU {
                 REGISTERS.SetFlag(GBRegisters.Mask.Negative, false);
                 REGISTERS.SetFlag(GBRegisters.Mask.HalfCarry, false);
                 REGISTERS.SetFlag(GBRegisters.Mask.Carry, carry);
-                return 4;
+                break;
             }
 
             case 0x08: { // LD ushort, SP
-                ushort value = gameboy.ReadU16(ref REGISTERS.PC);
-                gameboy.WriteByte(value, (byte)REGISTERS.SP);
-                gameboy.WriteByte((ushort)(value + 1), (byte)(REGISTERS.SP >> 8));
-                return 20;
+                ushort value = ReadU16(ref REGISTERS.PC);
+                WriteByte(value, (byte)REGISTERS.SP);
+                WriteByte((ushort)(value + 1), (byte)(REGISTERS.SP >> 8));
+                break;
             }
 
             case 0x09: // ADD HL, BC
                 REGISTERS.HL = Add(REGISTERS.HL, REGISTERS.BC);
-                return 8;
+                Tick(4);
+                break;
             
             case 0x0A: // LD A, (BC)
-                REGISTERS.A = gameboy.ReadByte(REGISTERS.BC);
-                return 8;
+                REGISTERS.A = ReadByte(REGISTERS.BC);
+                break;
             
             case 0x0B: // DEC BC
                 REGISTERS.BC--;
-                return 8;
+                Tick(4);
+                break;
             
             case 0x0C: // INC C
                 Increment(ref REGISTERS.C);
-                return 4;
+                break;
             
             case 0x0D: // DEC C
                 Decrement(ref REGISTERS.C);
-                return 4;
+                break;
             
             case 0x0E: // LD C, byte
-                REGISTERS.C = gameboy.ReadByte(REGISTERS.PC++);
-                return 8;
+                REGISTERS.C = ReadByte(REGISTERS.PC++);
+                break;
             
             case 0x0F: { // RRCA 
                 bool carry = (REGISTERS.A & 0x01) != 0;
@@ -371,8 +421,8 @@ public class CPU {
                 REGISTERS.SetFlag(GBRegisters.Mask.Negative, false);
                 REGISTERS.SetFlag(GBRegisters.Mask.HalfCarry, false);
                 REGISTERS.SetFlag(GBRegisters.Mask.Carry, carry);
-                
-                return 4;
+
+                break;
             }
             
             // -------- 0x1x -------- 
@@ -380,31 +430,32 @@ public class CPU {
             case 0x10: // STOP
                 REGISTERS.PC++;
                 STOPPED = true;
-                return 4;
+                break;
             
             case 0x11: // LD DE, ushort
-                REGISTERS.DE = gameboy.ReadU16(ref REGISTERS.PC);
-                return 12;
+                REGISTERS.DE = ReadU16(ref REGISTERS.PC);
+                break;
             
             case 0x12: // LD (DE), A
-                gameboy.WriteByte(REGISTERS.DE, REGISTERS.A);
-                return 8;
+                WriteByte(REGISTERS.DE, REGISTERS.A);
+                break;
             
             case 0x13: // INC DE
                 REGISTERS.DE++;
-                return 8;
+                Tick(4);
+                break;
             
             case 0x14: // INC D
                 Increment(ref REGISTERS.D);
-                return 4;
+                break;
             
             case 0x15: // DEC D
                 Decrement(ref REGISTERS.D);
-                return 4;
+                break;
             
             case 0x16: // LD D, byte
-                REGISTERS.D = gameboy.ReadByte(REGISTERS.PC++);
-                return 8;
+                REGISTERS.D = ReadByte(REGISTERS.PC++);
+                break;
             
             case 0x17: { // RLA 
                 bool old_carry = REGISTERS.GetFlag(GBRegisters.Mask.Carry);
@@ -415,38 +466,41 @@ public class CPU {
                 REGISTERS.SetFlag(GBRegisters.Mask.Negative, false);
                 REGISTERS.SetFlag(GBRegisters.Mask.HalfCarry, false);
                 REGISTERS.SetFlag(GBRegisters.Mask.Carry, carry);
-                return 4;
+                break;
             }
 
             case 0x18: { // JR byte
-                sbyte offset = unchecked((sbyte)gameboy.ReadByte(REGISTERS.PC++));
+                sbyte offset = unchecked((sbyte)ReadByte(REGISTERS.PC++));
                 REGISTERS.PC = (ushort)(REGISTERS.PC + offset);
-                return 12;
+                Tick(4);
+                break;
             }
             
             case 0x19: // ADD HL, DE
                 REGISTERS.HL = Add(REGISTERS.HL, REGISTERS.DE);
-                return 8;
+                Tick(4);
+                break;
             
             case 0x1A: // LD A, (DE)
-                REGISTERS.A = gameboy.ReadByte(REGISTERS.DE);
-                return 8;
+                REGISTERS.A = ReadByte(REGISTERS.DE);
+                break;
             
             case 0x1B: // DEC DE
                 REGISTERS.DE--;
-                return 8;
+                Tick(4);
+                break;
             
             case 0x1C: // INC E
                 Increment(ref REGISTERS.E);
-                return 4;
+                break;
             
             case 0x1D: // DEC E
                 Decrement(ref REGISTERS.E);
-                return 4;
+                break;
             
             case 0x1E: // LD E, byte
-                REGISTERS.E = gameboy.ReadByte(REGISTERS.PC++);
-                return 8;
+                REGISTERS.E = ReadByte(REGISTERS.PC++);
+                break;
             
             case 0x1F: { // RRA 
                 bool old_carry = REGISTERS.GetFlag(GBRegisters.Mask.Carry);
@@ -458,45 +512,47 @@ public class CPU {
                 REGISTERS.SetFlag(GBRegisters.Mask.Negative, false);
                 REGISTERS.SetFlag(GBRegisters.Mask.HalfCarry, false);
                 REGISTERS.SetFlag(GBRegisters.Mask.Carry, carry);
-                
-                return 4;
+
+                break;
             }
             
             // -------- 0x2x --------
             
             case 0x20: { // JR NZ, byte
-                sbyte offset = unchecked((sbyte)gameboy.ReadByte(REGISTERS.PC++));
+                sbyte offset = unchecked((sbyte)ReadByte(REGISTERS.PC++));
 
                 if (!REGISTERS.GetFlag(GBRegisters.Mask.Zero)) {
                     REGISTERS.PC = (ushort)(REGISTERS.PC + offset);
-                    return 12;
+                    Tick(4);
                 }
-                return 8;
+
+                break;
             }
 
             case 0x21: // LD HL, ushort
-                REGISTERS.HL = gameboy.ReadU16(ref REGISTERS.PC);
-                return 12;
+                REGISTERS.HL = ReadU16(ref REGISTERS.PC);
+                break;
             
             case 0x22: // LD (HL+), A
-                gameboy.WriteByte(REGISTERS.HL++, REGISTERS.A);
-                return 8;
+                WriteByte(REGISTERS.HL++, REGISTERS.A);
+                break;
             
             case 0x23: // INC HL
                 REGISTERS.HL++;
-                return 8;
+                Tick(4);
+                break;
             
             case 0x24: // INC H
                 Increment(ref REGISTERS.H);
-                return 4;
+                break;
             
             case 0x25: // DEC H
                 Decrement(ref REGISTERS.H);
-                return 4;
+                break;
             
             case 0x26: // LD H, byte
-                REGISTERS.H = gameboy.ReadByte(REGISTERS.PC++);
-                return 8;
+                REGISTERS.H = ReadByte(REGISTERS.PC++);
+                break;
 
             case 0x27: { // DAA
                 bool previous_op_subtract = REGISTERS.GetFlag(GBRegisters.Mask.Negative);
@@ -522,515 +578,550 @@ public class CPU {
                 REGISTERS.SetFlag(GBRegisters.Mask.HalfCarry, false);
                 
                 REGISTERS.A = A;
-                
-                return 4;
+
+                break;
             }
             
             case 0x28: { // JR Z, byte
-                sbyte offset = unchecked((sbyte)gameboy.ReadByte(REGISTERS.PC++));
+                sbyte offset = unchecked((sbyte)ReadByte(REGISTERS.PC++));
 
                 if (REGISTERS.GetFlag(GBRegisters.Mask.Zero)) {
                     REGISTERS.PC = (ushort)(REGISTERS.PC + offset);
-                    return 12;
+                    Tick(4);
                 }
 
-                return 8;
+                break;
             }
 
             case 0x29: // ADD HL, HL
                 REGISTERS.HL = Add(REGISTERS.HL, REGISTERS.HL);
-                return 8;
+                Tick(4);
+                break;
             
             case 0x2A: // LD A, (HL+)
-                REGISTERS.A = gameboy.ReadByte(REGISTERS.HL++);
-                return 8;
+                REGISTERS.A = ReadByte(REGISTERS.HL++);
+                break;
             
             case 0x2B: // DEC HL
                 REGISTERS.HL--;
-                return 8;
+                Tick(4);
+                break;
             
             case 0x2C: // INC L
                 Increment(ref REGISTERS.L);
-                return 4;
+                break;
             
             case 0x2D: // DEC L
                 Decrement(ref REGISTERS.L);
-                return 4;
+                break;
             
             case 0x2E: // LD L, byte
-                REGISTERS.L = gameboy.ReadByte(REGISTERS.PC++);
-                return 8;
+                REGISTERS.L = ReadByte(REGISTERS.PC++);
+                break;
             
             case 0x2F: // CPL
                 REGISTERS.A = (byte)~REGISTERS.A;
                 REGISTERS.SetFlag(GBRegisters.Mask.Negative, true);
                 REGISTERS.SetFlag(GBRegisters.Mask.HalfCarry, true);
-                
-                return 4;
+                break;
             
             // -------- 0x3x --------
             
             case 0x30: { // JR NC, byte
-                sbyte offset = unchecked((sbyte)gameboy.ReadByte(REGISTERS.PC++));
+                sbyte offset = unchecked((sbyte)ReadByte(REGISTERS.PC++));
 
                 if (!REGISTERS.GetFlag(GBRegisters.Mask.Carry)) {
                     REGISTERS.PC = (ushort)(REGISTERS.PC + offset);
-                    return 12;
+                    Tick(4);
                 }
 
-                return 8;
+                break;
             }
             
             case 0x31: // LD SP, ushort
-                REGISTERS.SP = gameboy.ReadU16(ref REGISTERS.PC);
-                return 12;
+                REGISTERS.SP = ReadU16(ref REGISTERS.PC);
+                break;
             
             case 0x32: // LD (HL-), A
-                gameboy.WriteByte(REGISTERS.HL--, REGISTERS.A);
-                return 8;
+                WriteByte(REGISTERS.HL--, REGISTERS.A);
+                break;
             
             case 0x33: // INC SP
                 REGISTERS.SP++;
-                return 8;
+                Tick(4);
+                break;
             
             case 0x34: // INC (HL)
                 IncrementAtAddress(gameboy, REGISTERS.HL);
-                return 12;
+                break;
             
             case 0x35: // DEC (HL)
                 DecrementAtAddress(gameboy, REGISTERS.HL);
-                return 12;
+                break;
             
             case 0x36: // LD (HL), byte
-                gameboy.WriteByte(REGISTERS.HL, gameboy.ReadByte(REGISTERS.PC++));
-                return 12;
+                WriteByte(REGISTERS.HL, ReadByte(REGISTERS.PC++));
+                break;
             
             case 0x37: // SCF
                 REGISTERS.SetFlag(GBRegisters.Mask.Negative, false);
                 REGISTERS.SetFlag(GBRegisters.Mask.HalfCarry, false);
                 REGISTERS.SetFlag(GBRegisters.Mask.Carry, true);
-                return 4;
+                break;
             
             case 0x38: { // JR C, byte
-                sbyte offset = unchecked((sbyte)gameboy.ReadByte(REGISTERS.PC++));
+                sbyte offset = unchecked((sbyte)ReadByte(REGISTERS.PC++));
 
                 if (REGISTERS.GetFlag(GBRegisters.Mask.Carry)) {
                     REGISTERS.PC = (ushort)(REGISTERS.PC + offset);
-                    return 12;
+                    Tick(4);
                 }
 
-                return 8;
+                break;
             }
             
             case 0x39: // ADD HL, SP
                 REGISTERS.HL = Add(REGISTERS.HL, REGISTERS.SP);
-                return 8;
+                Tick(4);
+                break;
             
             case 0x3A: // LD A, (HL-)
-                REGISTERS.A = gameboy.ReadByte(REGISTERS.HL--);
-                return 8;
+                REGISTERS.A = ReadByte(REGISTERS.HL--);
+                break;
             
             case 0x3B: // DEC SP
                 REGISTERS.SP--;
-                return 8;
+                Tick(4);
+                break;
             
             case 0x3C: // INC A
                 Increment(ref REGISTERS.A);
-                return 4;
+                break;
             
             case 0x3D: // DEC A
                 Decrement(ref REGISTERS.A);
-                return 4;
+                break;
             
             case 0x3E: // LD A, byte
-                REGISTERS.A = gameboy.ReadByte(REGISTERS.PC++);
-                return 8;
+                REGISTERS.A = ReadByte(REGISTERS.PC++);
+                break;
             
             case 0x3F: // CCF
                 REGISTERS.SetFlag(GBRegisters.Mask.Carry, !REGISTERS.GetFlag(GBRegisters.Mask.Carry));
                 REGISTERS.SetFlag(GBRegisters.Mask.Negative, false);
                 REGISTERS.SetFlag(GBRegisters.Mask.HalfCarry, false);
-                return 4;
+                break;
             
             // -------- 0x4x --------
             
-            case 0x40: REGISTERS.B = REGISTERS.B; return 4; // LD B, B
-            case 0x41: REGISTERS.B = REGISTERS.C; return 4; // LD B, C
-            case 0x42: REGISTERS.B = REGISTERS.D; return 4; // LD B, D
-            case 0x43: REGISTERS.B = REGISTERS.E; return 4; // LD B, E
-            case 0x44: REGISTERS.B = REGISTERS.H; return 4; // LD B, H
-            case 0x45: REGISTERS.B = REGISTERS.L; return 4; // LD B, L
-            case 0x46: REGISTERS.B = gameboy.ReadByte(REGISTERS.HL); return 8; // LD B, (HL)
-            case 0x47: REGISTERS.B = REGISTERS.A; return 4; // LD B, A
+            case 0x40: REGISTERS.B = REGISTERS.B; break; // LD B, B
+            case 0x41: REGISTERS.B = REGISTERS.C; break; // LD B, C
+            case 0x42: REGISTERS.B = REGISTERS.D; break; // LD B, D
+            case 0x43: REGISTERS.B = REGISTERS.E; break; // LD B, E
+            case 0x44: REGISTERS.B = REGISTERS.H; break; // LD B, H
+            case 0x45: REGISTERS.B = REGISTERS.L; break; // LD B, L
+            case 0x47: REGISTERS.B = REGISTERS.A; break; // LD B, A
+            case 0x46: REGISTERS.B = ReadByte(REGISTERS.HL); break; // LD B, (HL)
             
-            case 0x48: REGISTERS.C = REGISTERS.B; return 4; // LD C, B
-            case 0x49: REGISTERS.C = REGISTERS.C; return 4; // LD C, C
-            case 0x4A: REGISTERS.C = REGISTERS.D; return 4; // LD C, D
-            case 0x4B: REGISTERS.C = REGISTERS.E; return 4; // LD C, E
-            case 0x4C: REGISTERS.C = REGISTERS.H; return 4; // LD C, H
-            case 0x4D: REGISTERS.C = REGISTERS.L; return 4; // LD C, L
-            case 0x4E: REGISTERS.C = gameboy.ReadByte(REGISTERS.HL); return 8; // LD C, (HL)
-            case 0x4F: REGISTERS.C = REGISTERS.A; return 4; // LD C, A
+            case 0x48: REGISTERS.C = REGISTERS.B; break; // LD C, B
+            case 0x49: REGISTERS.C = REGISTERS.C; break; // LD C, C
+            case 0x4A: REGISTERS.C = REGISTERS.D; break; // LD C, D
+            case 0x4B: REGISTERS.C = REGISTERS.E; break; // LD C, E
+            case 0x4C: REGISTERS.C = REGISTERS.H; break; // LD C, H
+            case 0x4D: REGISTERS.C = REGISTERS.L; break; // LD C, L
+            case 0x4F: REGISTERS.C = REGISTERS.A; break; // LD C, A
+            case 0x4E: REGISTERS.C = ReadByte(REGISTERS.HL); break; // LD C, (HL)
             
             // -------- 0x5x --------
             
-            case 0x50: REGISTERS.D = REGISTERS.B; return 4; // LD D, B
-            case 0x51: REGISTERS.D = REGISTERS.C; return 4; // LD D, C
-            case 0x52: REGISTERS.D = REGISTERS.D; return 4; // LD D, D
-            case 0x53: REGISTERS.D = REGISTERS.E; return 4; // LD D, E
-            case 0x54: REGISTERS.D = REGISTERS.H; return 4; // LD D, H
-            case 0x55: REGISTERS.D = REGISTERS.L; return 4; // LD D, L
-            case 0x56: REGISTERS.D = gameboy.ReadByte(REGISTERS.HL); return 8; // LD D, (HL)
-            case 0x57: REGISTERS.D = REGISTERS.A; return 4; // LD D, A
+            case 0x50: REGISTERS.D = REGISTERS.B; break; // LD D, B
+            case 0x51: REGISTERS.D = REGISTERS.C; break; // LD D, C
+            case 0x52: REGISTERS.D = REGISTERS.D; break; // LD D, D
+            case 0x53: REGISTERS.D = REGISTERS.E; break; // LD D, E
+            case 0x54: REGISTERS.D = REGISTERS.H; break; // LD D, H
+            case 0x55: REGISTERS.D = REGISTERS.L; break; // LD D, L
+            case 0x57: REGISTERS.D = REGISTERS.A; break; // LD D, A
+            case 0x56: REGISTERS.D = ReadByte(REGISTERS.HL); break; // LD D, (HL)
             
-            case 0x58: REGISTERS.E = REGISTERS.B; return 4; // LD E, B
-            case 0x59: REGISTERS.E = REGISTERS.C; return 4; // LD E, C
-            case 0x5A: REGISTERS.E = REGISTERS.D; return 4; // LD E, D
-            case 0x5B: REGISTERS.E = REGISTERS.E; return 4; // LD E, E
-            case 0x5C: REGISTERS.E = REGISTERS.H; return 4; // LD E, H
-            case 0x5D: REGISTERS.E = REGISTERS.L; return 4; // LD E, L
-            case 0x5E: REGISTERS.E = gameboy.ReadByte(REGISTERS.HL); return 8; // LD E, (HL)
-            case 0x5F: REGISTERS.E = REGISTERS.A; return 4; // LD E, A
+            case 0x58: REGISTERS.E = REGISTERS.B; break; // LD E, B
+            case 0x59: REGISTERS.E = REGISTERS.C; break; // LD E, C
+            case 0x5A: REGISTERS.E = REGISTERS.D; break; // LD E, D
+            case 0x5B: REGISTERS.E = REGISTERS.E; break; // LD E, E
+            case 0x5C: REGISTERS.E = REGISTERS.H; break; // LD E, H
+            case 0x5D: REGISTERS.E = REGISTERS.L; break; // LD E, L
+            case 0x5F: REGISTERS.E = REGISTERS.A; break; // LD E, A
+            case 0x5E: REGISTERS.E = ReadByte(REGISTERS.HL); break; // LD E, (HL)
             
             // -------- 0x6x --------
             
-            case 0x60: REGISTERS.H = REGISTERS.B; return 4; // LD H, B
-            case 0x61: REGISTERS.H = REGISTERS.C; return 4; // LD H, C
-            case 0x62: REGISTERS.H = REGISTERS.D; return 4; // LD H, D
-            case 0x63: REGISTERS.H = REGISTERS.E; return 4; // LD H, E
-            case 0x64: REGISTERS.H = REGISTERS.H; return 4; // LD H, H
-            case 0x65: REGISTERS.H = REGISTERS.L; return 4; // LD H, L
-            case 0x66: REGISTERS.H = gameboy.ReadByte(REGISTERS.HL); return 8; // LD H, (HL)
-            case 0x67: REGISTERS.H = REGISTERS.A; return 4; // LD H, A
+            case 0x60: REGISTERS.H = REGISTERS.B; break; // LD H, B
+            case 0x61: REGISTERS.H = REGISTERS.C; break; // LD H, C
+            case 0x62: REGISTERS.H = REGISTERS.D; break; // LD H, D
+            case 0x63: REGISTERS.H = REGISTERS.E; break; // LD H, E
+            case 0x64: REGISTERS.H = REGISTERS.H; break; // LD H, H
+            case 0x65: REGISTERS.H = REGISTERS.L; break; // LD H, L
+            case 0x67: REGISTERS.H = REGISTERS.A; break; // LD H, A
+            case 0x66: REGISTERS.H = ReadByte(REGISTERS.HL); break; // LD H, (HL)
             
-            case 0x68: REGISTERS.L = REGISTERS.B; return 4; // LD L, B
-            case 0x69: REGISTERS.L = REGISTERS.C; return 4; // LD L, C
-            case 0x6A: REGISTERS.L = REGISTERS.D; return 4; // LD L, D
-            case 0x6B: REGISTERS.L = REGISTERS.E; return 4; // LD L, E
-            case 0x6C: REGISTERS.L = REGISTERS.H; return 4; // LD L, H
-            case 0x6D: REGISTERS.L = REGISTERS.L; return 4; // LD L, L
-            case 0x6E: REGISTERS.L = gameboy.ReadByte(REGISTERS.HL); return 8; // LD L, (HL)
-            case 0x6F: REGISTERS.L = REGISTERS.A; return 4; // LD L, A
+            case 0x68: REGISTERS.L = REGISTERS.B; break; // LD L, B
+            case 0x69: REGISTERS.L = REGISTERS.C; break; // LD L, C
+            case 0x6A: REGISTERS.L = REGISTERS.D; break; // LD L, D
+            case 0x6B: REGISTERS.L = REGISTERS.E; break; // LD L, E
+            case 0x6C: REGISTERS.L = REGISTERS.H; break; // LD L, H
+            case 0x6D: REGISTERS.L = REGISTERS.L; break; // LD L, L
+            case 0x6F: REGISTERS.L = REGISTERS.A; break; // LD L, A
+            case 0x6E: REGISTERS.L = ReadByte(REGISTERS.HL); break; // LD L, (HL)
             
             // -------- 0x7x --------
             
-            case 0x70: gameboy.WriteByte(REGISTERS.HL, REGISTERS.B); return 8; // LD (HL), B
-            case 0x71: gameboy.WriteByte(REGISTERS.HL, REGISTERS.C); return 8; // LD (HL), C
-            case 0x72: gameboy.WriteByte(REGISTERS.HL, REGISTERS.D); return 8; // LD (HL), D
-            case 0x73: gameboy.WriteByte(REGISTERS.HL, REGISTERS.E); return 8; // LD (HL), E
-            case 0x74: gameboy.WriteByte(REGISTERS.HL, REGISTERS.H); return 8; // LD (HL), H
-            case 0x75: gameboy.WriteByte(REGISTERS.HL, REGISTERS.L); return 8; // LD (HL), L
+            case 0x70: WriteByte(REGISTERS.HL, REGISTERS.B); break; // LD (HL), B
+            case 0x71: WriteByte(REGISTERS.HL, REGISTERS.C); break; // LD (HL), C
+            case 0x72: WriteByte(REGISTERS.HL, REGISTERS.D); break; // LD (HL), D
+            case 0x73: WriteByte(REGISTERS.HL, REGISTERS.E); break; // LD (HL), E
+            case 0x74: WriteByte(REGISTERS.HL, REGISTERS.H); break; // LD (HL), H
+            case 0x75: WriteByte(REGISTERS.HL, REGISTERS.L); break; // LD (HL), L
             
             case 0x76: // HALT
-                if (InterruptPending)
-                    if (!INTERRUPT_MASTER_ENABLE) HALT_BUG = true;
-                else HALTED = true; 
-                return 4;
+                if (!INTERRUPT_MASTER_ENABLE) {
+                    if (InterruptPending) {
+                        HALTED = false; 
+                        HALT_BUG = true; 
+                    } else {
+                        HALTED = true;
+                    }
+                } else {
+                    HALTED = true;
+                }
+                break;
             
-            case 0x77: gameboy.WriteByte(REGISTERS.HL, REGISTERS.A); return 8; // LD (HL), A
+            case 0x77: WriteByte(REGISTERS.HL, REGISTERS.A); break; // LD (HL), A
             
-            case 0x78: REGISTERS.A = REGISTERS.B; return 4; // LD A, B
-            case 0x79: REGISTERS.A = REGISTERS.C; return 4; // LD A, C
-            case 0x7A: REGISTERS.A = REGISTERS.D; return 4; // LD A, D
-            case 0x7B: REGISTERS.A = REGISTERS.E; return 4; // LD A, E
-            case 0x7C: REGISTERS.A = REGISTERS.H; return 4; // LD A, H
-            case 0x7D: REGISTERS.A = REGISTERS.L; return 4; // LD A, L
-            case 0x7E: REGISTERS.A = gameboy.ReadByte(REGISTERS.HL); return 8; // LD A, (HL)
-            case 0x7F: REGISTERS.A = REGISTERS.A; return 4; // LD A, A
+            case 0x78: REGISTERS.A = REGISTERS.B; break; // LD A, B
+            case 0x79: REGISTERS.A = REGISTERS.C; break; // LD A, C
+            case 0x7A: REGISTERS.A = REGISTERS.D; break; // LD A, D
+            case 0x7B: REGISTERS.A = REGISTERS.E; break; // LD A, E
+            case 0x7C: REGISTERS.A = REGISTERS.H; break; // LD A, H
+            case 0x7D: REGISTERS.A = REGISTERS.L; break; // LD A, L
+            case 0x7F: REGISTERS.A = REGISTERS.A; break; // LD A, A
+            case 0x7E: REGISTERS.A = ReadByte(REGISTERS.HL); break; // LD A, (HL)
             
             // -------- 0x8x --------
             
-            case 0x80: Add(ref REGISTERS.A, REGISTERS.B); return 4; // ADD A, B
-            case 0x81: Add(ref REGISTERS.A, REGISTERS.C); return 4; // ADD A, C
-            case 0x82: Add(ref REGISTERS.A, REGISTERS.D); return 4; // ADD A, D
-            case 0x83: Add(ref REGISTERS.A, REGISTERS.E); return 4; // ADD A, E
-            case 0x84: Add(ref REGISTERS.A, REGISTERS.H); return 4; // ADD A, H
-            case 0x85: Add(ref REGISTERS.A, REGISTERS.L); return 4; // ADD A, L
-            case 0x86: Add(ref REGISTERS.A, gameboy.ReadByte(REGISTERS.HL)); return 8; // ADD A, (HL)
-            case 0x87: Add(ref REGISTERS.A, REGISTERS.A); return 4; // ADD A, A
+            case 0x80: Add(ref REGISTERS.A, REGISTERS.B); break; // ADD A, B
+            case 0x81: Add(ref REGISTERS.A, REGISTERS.C); break; // ADD A, C
+            case 0x82: Add(ref REGISTERS.A, REGISTERS.D); break; // ADD A, D
+            case 0x83: Add(ref REGISTERS.A, REGISTERS.E); break; // ADD A, E
+            case 0x84: Add(ref REGISTERS.A, REGISTERS.H); break; // ADD A, H
+            case 0x85: Add(ref REGISTERS.A, REGISTERS.L); break; // ADD A, L
+            case 0x87: Add(ref REGISTERS.A, REGISTERS.A); break; // ADD A, A
+            case 0x86: Add(ref REGISTERS.A, ReadByte(REGISTERS.HL)); break; // ADD A, (HL)
             
-            case 0x88: AddWithCarry(ref REGISTERS.A, REGISTERS.B); return 4; // ADC A, B
-            case 0x89: AddWithCarry(ref REGISTERS.A, REGISTERS.C); return 4; // ADC A, C
-            case 0x8A: AddWithCarry(ref REGISTERS.A, REGISTERS.D); return 4; // ADC A, D
-            case 0x8B: AddWithCarry(ref REGISTERS.A, REGISTERS.E); return 4; // ADC A, E
-            case 0x8C: AddWithCarry(ref REGISTERS.A, REGISTERS.H); return 4; // ADC A, H
-            case 0x8D: AddWithCarry(ref REGISTERS.A, REGISTERS.L); return 4; // ADC A, L
-            case 0x8E: AddWithCarry(ref REGISTERS.A, gameboy.ReadByte(REGISTERS.HL)); return 8; // ADC A, (HL)
-            case 0x8F: AddWithCarry(ref REGISTERS.A, REGISTERS.A); return 4; // ADC A, A
+            case 0x88: AddWithCarry(ref REGISTERS.A, REGISTERS.B); break; // ADC A, B
+            case 0x89: AddWithCarry(ref REGISTERS.A, REGISTERS.C); break; // ADC A, C
+            case 0x8A: AddWithCarry(ref REGISTERS.A, REGISTERS.D); break; // ADC A, D
+            case 0x8B: AddWithCarry(ref REGISTERS.A, REGISTERS.E); break; // ADC A, E
+            case 0x8C: AddWithCarry(ref REGISTERS.A, REGISTERS.H); break; // ADC A, H
+            case 0x8D: AddWithCarry(ref REGISTERS.A, REGISTERS.L); break; // ADC A, L
+            case 0x8F: AddWithCarry(ref REGISTERS.A, REGISTERS.A); break; // ADC A, A
+            case 0x8E: AddWithCarry(ref REGISTERS.A, ReadByte(REGISTERS.HL)); break; // ADC A, (HL)
             
             // -------- 0x9x --------
             
-            case 0x90: Subtract(ref REGISTERS.A, REGISTERS.B); return 4;                   // SUB A, B
-            case 0x91: Subtract(ref REGISTERS.A, REGISTERS.C); return 4;          // SUB A, C
-            case 0x92: Subtract(ref REGISTERS.A, REGISTERS.D); return 4;          // SUB A, D
-            case 0x93: Subtract(ref REGISTERS.A, REGISTERS.E); return 4;          // SUB A, E
-            case 0x94: Subtract(ref REGISTERS.A, REGISTERS.H); return 4;          // SUB A, H
-            case 0x95: Subtract(ref REGISTERS.A, REGISTERS.L); return 4;          // SUB A, L
-            case 0x96: Subtract(ref REGISTERS.A, gameboy.ReadByte(REGISTERS.HL)); return 8; // SUB A, (HL)
-            case 0x97: Subtract(ref REGISTERS.A, REGISTERS.A); return 4;          // SUB A, A
+            case 0x90: Subtract(ref REGISTERS.A, REGISTERS.B); break;                   // SUB A, B
+            case 0x91: Subtract(ref REGISTERS.A, REGISTERS.C); break;          // SUB A, C
+            case 0x92: Subtract(ref REGISTERS.A, REGISTERS.D); break;          // SUB A, D
+            case 0x93: Subtract(ref REGISTERS.A, REGISTERS.E); break;          // SUB A, E
+            case 0x94: Subtract(ref REGISTERS.A, REGISTERS.H); break;          // SUB A, H
+            case 0x95: Subtract(ref REGISTERS.A, REGISTERS.L); break;          // SUB A, L
+            case 0x97: Subtract(ref REGISTERS.A, REGISTERS.A); break;          // SUB A, A
+            case 0x96: Subtract(ref REGISTERS.A, ReadByte(REGISTERS.HL)); break; // SUB A, (HL)
             
-            case 0x98: SubtractWithCarry(ref REGISTERS.A, REGISTERS.B); return 4;          // SUB A, B
-            case 0x99: SubtractWithCarry(ref REGISTERS.A, REGISTERS.C); return 4; // SBC A, C
-            case 0x9A: SubtractWithCarry(ref REGISTERS.A, REGISTERS.D); return 4; // SBC A, D
-            case 0x9B: SubtractWithCarry(ref REGISTERS.A, REGISTERS.E); return 4; // SBC A, E
-            case 0x9C: SubtractWithCarry(ref REGISTERS.A, REGISTERS.H); return 4; // SBC A, H
-            case 0x9D: SubtractWithCarry(ref REGISTERS.A, REGISTERS.L); return 4; // SBC A, L
-            case 0x9E: SubtractWithCarry(ref REGISTERS.A, gameboy.ReadByte(REGISTERS.HL)); return 8; // SBC A, (HL)
-            case 0x9F: SubtractWithCarry(ref REGISTERS.A, REGISTERS.A); return 4; // SBC A, A
+            case 0x98: SubtractWithCarry(ref REGISTERS.A, REGISTERS.B); break;          // SUB A, B
+            case 0x99: SubtractWithCarry(ref REGISTERS.A, REGISTERS.C); break; // SBC A, C
+            case 0x9A: SubtractWithCarry(ref REGISTERS.A, REGISTERS.D); break; // SBC A, D
+            case 0x9B: SubtractWithCarry(ref REGISTERS.A, REGISTERS.E); break; // SBC A, E
+            case 0x9C: SubtractWithCarry(ref REGISTERS.A, REGISTERS.H); break; // SBC A, H
+            case 0x9D: SubtractWithCarry(ref REGISTERS.A, REGISTERS.L); break; // SBC A, L
+            case 0x9F: SubtractWithCarry(ref REGISTERS.A, REGISTERS.A); break; // SBC A, A
+            case 0x9E: SubtractWithCarry(ref REGISTERS.A, ReadByte(REGISTERS.HL)); break; // SBC A, (HL)
             
             // -------- 0xAx --------
             
-            case 0xA0: And(ref REGISTERS.A, REGISTERS.B); return 4;                   // AND A, B
-            case 0xA1: And(ref REGISTERS.A, REGISTERS.C); return 4;          // AND A, C
-            case 0xA2: And(ref REGISTERS.A, REGISTERS.D); return 4;          // AND A, D
-            case 0xA3: And(ref REGISTERS.A, REGISTERS.E); return 4;          // AND A, E
-            case 0xA4: And(ref REGISTERS.A, REGISTERS.H); return 4;          // AND A, H
-            case 0xA5: And(ref REGISTERS.A, REGISTERS.L); return 4;          // AND A, L
-            case 0xA6: And(ref REGISTERS.A, gameboy.ReadByte(REGISTERS.HL)); return 8; // AND A, (HL)
-            case 0xA7: And(ref REGISTERS.A, REGISTERS.A); return 4;          // AND A, A
+            case 0xA0: And(ref REGISTERS.A, REGISTERS.B); break;                   // AND A, B
+            case 0xA1: And(ref REGISTERS.A, REGISTERS.C); break;          // AND A, C
+            case 0xA2: And(ref REGISTERS.A, REGISTERS.D); break;          // AND A, D
+            case 0xA3: And(ref REGISTERS.A, REGISTERS.E); break;          // AND A, E
+            case 0xA4: And(ref REGISTERS.A, REGISTERS.H); break;          // AND A, H
+            case 0xA5: And(ref REGISTERS.A, REGISTERS.L); break;          // AND A, L
+            case 0xA7: And(ref REGISTERS.A, REGISTERS.A); break;          // AND A, A
+            case 0xA6: And(ref REGISTERS.A, ReadByte(REGISTERS.HL)); break; // AND A, (HL)
             
-            case 0xA8: Xor(ref REGISTERS.A, REGISTERS.B); return 4;          // XOR A, B
-            case 0xA9: Xor(ref REGISTERS.A, REGISTERS.C); return 4; // XOR A, C
-            case 0xAA: Xor(ref REGISTERS.A, REGISTERS.D); return 4; // XOR A, D
-            case 0xAB: Xor(ref REGISTERS.A, REGISTERS.E); return 4; // XOR A, E
-            case 0xAC: Xor(ref REGISTERS.A, REGISTERS.H); return 4; // XOR A, H
-            case 0xAD: Xor(ref REGISTERS.A, REGISTERS.L); return 4; // XOR A, L
-            case 0xAE: Xor(ref REGISTERS.A, gameboy.ReadByte(REGISTERS.HL)); return 8; // XOR A, (HL)
-            case 0xAF: Xor(ref REGISTERS.A, REGISTERS.A); return 4; // XOR A, A
+            case 0xA8: Xor(ref REGISTERS.A, REGISTERS.B); break;          // XOR A, B
+            case 0xA9: Xor(ref REGISTERS.A, REGISTERS.C); break; // XOR A, C
+            case 0xAA: Xor(ref REGISTERS.A, REGISTERS.D); break; // XOR A, D
+            case 0xAB: Xor(ref REGISTERS.A, REGISTERS.E); break; // XOR A, E
+            case 0xAC: Xor(ref REGISTERS.A, REGISTERS.H); break; // XOR A, H
+            case 0xAD: Xor(ref REGISTERS.A, REGISTERS.L); break; // XOR A, L
+            case 0xAF: Xor(ref REGISTERS.A, REGISTERS.A); break; // XOR A, A
+            case 0xAE: Xor(ref REGISTERS.A, ReadByte(REGISTERS.HL)); break; // XOR A, (HL)
             
             // -------- 0xBx --------
             
-            case 0xB0: Or(ref REGISTERS.A, REGISTERS.B); return 4;                   // OR A, B
-            case 0xB1: Or(ref REGISTERS.A, REGISTERS.C); return 4;          // OR A, C
-            case 0xB2: Or(ref REGISTERS.A, REGISTERS.D); return 4;          // OR A, D
-            case 0xB3: Or(ref REGISTERS.A, REGISTERS.E); return 4;          // OR A, E
-            case 0xB4: Or(ref REGISTERS.A, REGISTERS.H); return 4;          // OR A, H
-            case 0xB5: Or(ref REGISTERS.A, REGISTERS.L); return 4;          // OR A, L
-            case 0xB6: Or(ref REGISTERS.A, gameboy.ReadByte(REGISTERS.HL)); return 8; // OR A, (HL)
-            case 0xB7: Or(ref REGISTERS.A, REGISTERS.A); return 4;          // OR A, A
+            case 0xB0: Or(ref REGISTERS.A, REGISTERS.B); break;                   // OR A, B
+            case 0xB1: Or(ref REGISTERS.A, REGISTERS.C); break;          // OR A, C
+            case 0xB2: Or(ref REGISTERS.A, REGISTERS.D); break;          // OR A, D
+            case 0xB3: Or(ref REGISTERS.A, REGISTERS.E); break;          // OR A, E
+            case 0xB4: Or(ref REGISTERS.A, REGISTERS.H); break;          // OR A, H
+            case 0xB5: Or(ref REGISTERS.A, REGISTERS.L); break;          // OR A, L
+            case 0xB7: Or(ref REGISTERS.A, REGISTERS.A); break;          // OR A, A
+            case 0xB6: Or(ref REGISTERS.A, ReadByte(REGISTERS.HL)); break; // OR A, (HL)
             
-            case 0xB8: Compare(REGISTERS.A, REGISTERS.B); return 4; // CP B
-            case 0xB9: Compare(REGISTERS.A, REGISTERS.C); return 4; // CP C
-            case 0xBA: Compare(REGISTERS.A, REGISTERS.D); return 4; // CP D
-            case 0xBB: Compare(REGISTERS.A, REGISTERS.E); return 4; // CP E
-            case 0xBC: Compare(REGISTERS.A, REGISTERS.H); return 4; // CP H
-            case 0xBD: Compare(REGISTERS.A, REGISTERS.L); return 4; // CP L
-            case 0xBE: Compare(REGISTERS.A, gameboy.ReadByte(REGISTERS.HL)); return 8; // CP (HL)
-            case 0xBF: Compare(REGISTERS.A, REGISTERS.A); return 4; // CP A
+            case 0xB8: Compare(REGISTERS.A, REGISTERS.B); break; // CP B
+            case 0xB9: Compare(REGISTERS.A, REGISTERS.C); break; // CP C
+            case 0xBA: Compare(REGISTERS.A, REGISTERS.D); break; // CP D
+            case 0xBB: Compare(REGISTERS.A, REGISTERS.E); break; // CP E
+            case 0xBC: Compare(REGISTERS.A, REGISTERS.H); break; // CP H
+            case 0xBD: Compare(REGISTERS.A, REGISTERS.L); break; // CP L
+            case 0xBF: Compare(REGISTERS.A, REGISTERS.A); break; // CP A
+            case 0xBE: Compare(REGISTERS.A, ReadByte(REGISTERS.HL)); break; // CP (HL)
             
             // -------- 0xCx --------
 
             case 0xC0: // RET NZ
                 if (!REGISTERS.GetFlag(GBRegisters.Mask.Zero)) {
-                    REGISTERS.PC = gameboy.PopU16(ref REGISTERS.SP);
-                    //return 20;
+                    REGISTERS.PC = PopU16(ref REGISTERS.SP);
+                    Tick(4);
                 }
-                return 8;
+                
+                Tick(4);
+                break;
             
             case 0xC1: { // POP BC
-                ushort value = gameboy.PopU16(ref REGISTERS.SP);
+                ushort value = PopU16(ref REGISTERS.SP);
                 REGISTERS.BC = value;
-                return 0;
+                break;
             }
             
             case 0xC2: { // JP NZ, ushort
-                ushort address = gameboy.ReadU16(ref REGISTERS.PC);
+                ushort address = ReadU16(ref REGISTERS.PC);
+                
                 if (!REGISTERS.GetFlag(GBRegisters.Mask.Zero)) {
                     REGISTERS.PC = address;
-                    return 16;
+                    Tick(4);
                 }
-                return 12;
+
+                break;
             }
             
             case 0xC3: // JP ushort
-                REGISTERS.PC = gameboy.ReadU16(ref REGISTERS.PC);
-                return 16;
-            
+                REGISTERS.PC = ReadU16(ref REGISTERS.PC);
+                Tick(4);
+                break;
             
             case 0xC4: { // CALL NZ, ushort
-                ushort address = gameboy.ReadU16(ref REGISTERS.PC);
+                ushort address = ReadU16(ref REGISTERS.PC);
+                
                 if (!REGISTERS.GetFlag(GBRegisters.Mask.Zero)) {
-                    gameboy.PushU16(ref REGISTERS.SP, REGISTERS.PC);
+                    PushU16(ref REGISTERS.SP, REGISTERS.PC);
                     REGISTERS.PC = address;
-                    //return 24;
                 }
-                return 12;
+
+                break;
             }
             
             case 0xC5: // PUSH BC
-                gameboy.PushU16( ref REGISTERS.SP, REGISTERS.BC);
-                return 0;
+                PushU16( ref REGISTERS.SP, REGISTERS.BC);
+                Tick(4);
+                break;
             
             case 0xC6: // ADD A, byte
-                Add(ref REGISTERS.A, gameboy.ReadByte(REGISTERS.PC++));
-                return 8;
+                Add(ref REGISTERS.A, ReadByte(REGISTERS.PC++));
+                break;
             
             case 0xC7: // RST 00h
-                gameboy.PushU16( ref REGISTERS.SP, REGISTERS.PC);
+                PushU16( ref REGISTERS.SP, REGISTERS.PC);
                 REGISTERS.PC = 0x0000;
-                return 0;
+                break;
             
             case 0xC8: // RET Z
                 if (REGISTERS.GetFlag(GBRegisters.Mask.Zero)) {
-                    REGISTERS.PC = gameboy.PopU16(ref REGISTERS.SP);
-                    //return 20;
+                    REGISTERS.PC = PopU16(ref REGISTERS.SP);
+                    Tick(4);
                 }
-                return 8;
+                
+                Tick(4);
+                break;
             
             case 0xC9: // RET
-                REGISTERS.PC = gameboy.PopU16(ref REGISTERS.SP);
-                return 0;
+                REGISTERS.PC = PopU16(ref REGISTERS.SP);
+                Tick(4);
+                break;
             
             case 0xCA: { // JP Z, ushort
-                ushort address = gameboy.ReadU16(ref REGISTERS.PC);
+                ushort address = ReadU16(ref REGISTERS.PC);
+                
                 if (REGISTERS.GetFlag(GBRegisters.Mask.Zero)) {
                     REGISTERS.PC = address;
-                    return 16;
+                    Tick(4);
                 }
-                return 12;
+
+                break;
             }
 
             case 0xCB: { // CB PREFIX
-                return CBTable(gameboy.ReadByte(REGISTERS.PC++));
+                CBTable(ReadByte(REGISTERS.PC++));
+                break;
             }
                 
             case 0xCC: { // CALL Z, ushort
-                ushort address = gameboy.ReadU16(ref REGISTERS.PC);
+                ushort address = ReadU16(ref REGISTERS.PC);
+                
                 if (REGISTERS.GetFlag(GBRegisters.Mask.Zero)) {
-                    gameboy.PushU16( ref REGISTERS.SP, REGISTERS.PC);
+                    PushU16( ref REGISTERS.SP, REGISTERS.PC);
                     REGISTERS.PC = address;
-                    //return 24;
                 }
-                return 12;
+
+                break;
             }
             
             case 0xCD: { // CALL ushort
-                ushort address = gameboy.ReadU16(ref REGISTERS.PC);
-                gameboy.PushU16( ref REGISTERS.SP, REGISTERS.PC);
+                ushort address = ReadU16(ref REGISTERS.PC);
+                PushU16( ref REGISTERS.SP, REGISTERS.PC);
                 REGISTERS.PC = address;
-                return 8;
+                break;
             }
             
             case 0xCE: // ADC A, byte
-                AddWithCarry(ref REGISTERS.A, gameboy.ReadByte(REGISTERS.PC++));
-                return 8;
+                AddWithCarry(ref REGISTERS.A, ReadByte(REGISTERS.PC++));
+                break;
 
             case 0xCF: // RST 08h
-                gameboy.PushU16( ref REGISTERS.SP, REGISTERS.PC);
+                PushU16( ref REGISTERS.SP, REGISTERS.PC);
                 REGISTERS.PC = 0x0008;
-                return 0;
+                break;
             
             // -------- 0xDx --------
             
-            case 0xD0: { //RET NC
+            case 0xD0: { // RET NC
                 if (!REGISTERS.GetFlag(GBRegisters.Mask.Carry)) {
-                    REGISTERS.PC = gameboy.PopU16(ref REGISTERS.SP);
-                    //return 20;
+                    REGISTERS.PC = PopU16(ref REGISTERS.SP);
+                    Tick(4);
                 }
-                return 8;
+                
+                Tick(4);
+                break;
             }
             
             case 0xD1: { // POP DE
-                ushort value = gameboy.PopU16(ref REGISTERS.SP);
+                ushort value = PopU16(ref REGISTERS.SP);
                 REGISTERS.DE = value;
-                return 0;
+                break;
             }
             
             case 0xD2: { // JP NC, ushort
-                ushort address = gameboy.ReadU16(ref REGISTERS.PC);
+                ushort address = ReadU16(ref REGISTERS.PC);
+                
                 if (!REGISTERS.GetFlag(GBRegisters.Mask.Carry)) {
                     REGISTERS.PC = address;
-                    return 16;
+                    Tick(4);
                 }
-                return 12;
+
+                break;
             }
             
             // 0xD3 UNUSED
             
             case 0xD4: { // CALL NC, ushort
-                ushort address = gameboy.ReadU16(ref REGISTERS.PC);
+                ushort address = ReadU16(ref REGISTERS.PC);
                 if (!REGISTERS.GetFlag(GBRegisters.Mask.Carry)) {
-                    gameboy.PushU16( ref REGISTERS.SP, REGISTERS.PC);
+                    PushU16( ref REGISTERS.SP, REGISTERS.PC);
                     REGISTERS.PC = address;
-                    //return 24;
                 }
-                return 12;
+
+                break;
             }
             
             case 0xD5: // PUSH DE
-                gameboy.PushU16( ref REGISTERS.SP, REGISTERS.DE);
-                return 0;
+                PushU16( ref REGISTERS.SP, REGISTERS.DE);
+                Tick(4);
+                break;
             
             case 0xD6: // SUB A, byte
-                Subtract(ref REGISTERS.A, gameboy.ReadByte(REGISTERS.PC++));
-                return 8;
+                Subtract(ref REGISTERS.A, ReadByte(REGISTERS.PC++));
+                break;
             
             case 0xD7: // RST 10h
-                gameboy.PushU16( ref REGISTERS.SP, REGISTERS.PC);
+                PushU16( ref REGISTERS.SP, REGISTERS.PC);
                 REGISTERS.PC = 0x0010;
-                return 0;
+                break;
             
             case 0xD8: // RET C
                 if (REGISTERS.GetFlag(GBRegisters.Mask.Carry)) {
-                    REGISTERS.PC = gameboy.PopU16(ref REGISTERS.SP);
-                    //return 20;
+                    REGISTERS.PC = PopU16(ref REGISTERS.SP);
+                    Tick(4);
                 }
-                return 8;
+                
+                Tick(4);
+                break;
             
             case 0xD9: // RETI
-                REGISTERS.PC = gameboy.PopU16(ref REGISTERS.SP);
+                REGISTERS.PC = PopU16(ref REGISTERS.SP);
                 INTERRUPT_MASTER_ENABLE = true;
-                return 0;
+                Tick(4);
+                break;
             
             case 0xDA: { // JP C, ushort
-                ushort address = gameboy.ReadU16(ref REGISTERS.PC);
+                ushort address = ReadU16(ref REGISTERS.PC);
+                
                 if (REGISTERS.GetFlag(GBRegisters.Mask.Carry)) {
                     REGISTERS.PC = address;
-                    return 16;
+                    Tick(4);
                 }
-                return 12;
+
+                break;
             }
             
             // 0xDB UNUSED
             
             case 0xDC: { // CALL C, ushort
-                ushort address = gameboy.ReadU16(ref REGISTERS.PC);
+                ushort address = ReadU16(ref REGISTERS.PC);
+                
                 if (REGISTERS.GetFlag(GBRegisters.Mask.Carry)) {
-                    gameboy.PushU16( ref REGISTERS.SP, REGISTERS.PC);
+                    PushU16( ref REGISTERS.SP, REGISTERS.PC);
                     REGISTERS.PC = address;
-                    //return 24;
                 }
-                return 12;
+
+                break;
             }
             
             // 0xDD UNUSED
             
             case 0xDE: // SBC A, byte
-                SubtractWithCarry(ref REGISTERS.A, gameboy.ReadByte(REGISTERS.PC++));
-                return 8;
+                SubtractWithCarry(ref REGISTERS.A, ReadByte(REGISTERS.PC++));
+                break;
             
             case 0xDF: // RST 18h
-                gameboy.PushU16( ref REGISTERS.SP, REGISTERS.PC);
+                PushU16( ref REGISTERS.SP, REGISTERS.PC);
                 REGISTERS.PC = 0x0018;
-                return 0;
+                break;
             
             // -------- 0xEx --------
 
             case 0xE0: { // LD (FF00 + byte), A
-                byte offset = gameboy.ReadByte(REGISTERS.PC++);
-                gameboy.WriteByte((ushort)(0xFF00 + offset), REGISTERS.A);
-                return 12;
+                byte offset = ReadByte(REGISTERS.PC++);
+                WriteByte((ushort)(0xFF00 + offset), REGISTERS.A);
+                break;
             }
 
             case 0xE1: { // POP HL
-                ushort value = gameboy.PopU16(ref REGISTERS.SP);
+                ushort value = PopU16(ref REGISTERS.SP);
                 REGISTERS.HL = value;
-                return 0;
+                break;
             }
             
             case 0xE2: { // LD (FF00 + C), A
-                gameboy.WriteByte((ushort)(0xFF00 + REGISTERS.C), REGISTERS.A);
-                return 8;
+                WriteByte((ushort)(0xFF00 + REGISTERS.C), REGISTERS.A);
+                break;
             }
             
             // 0xE3 UNUSED
@@ -1038,21 +1129,25 @@ public class CPU {
             // 0xE4 UNUSED
             
             case 0xE5: // PUSH HL
-                gameboy.PushU16( ref REGISTERS.SP, REGISTERS.HL);
-                return 0;
+                PushU16( ref REGISTERS.SP, REGISTERS.HL);
+                Tick(4);
+                break;
             
             case 0xE6: // AND A, byte
-                And(ref REGISTERS.A, gameboy.ReadByte(REGISTERS.PC++));
-                return 8;
+                And(ref REGISTERS.A, ReadByte(REGISTERS.PC++));
+                break;
             
             case 0xE7: // RST 20h
-                gameboy.PushU16( ref REGISTERS.SP, REGISTERS.PC);
+                PushU16( ref REGISTERS.SP, REGISTERS.PC);
                 REGISTERS.PC = 0x0020;
-                return 0;
+                break;
 
             case 0xE8: { // ADD SP, byte
                 ushort a = REGISTERS.SP;
-                sbyte b = unchecked((sbyte)gameboy.ReadByte(REGISTERS.PC++));
+
+                sbyte b = unchecked((sbyte)ReadByte(REGISTERS.PC++));
+                Tick(4);
+                Tick(4);
 
                 int result = a + b;
                 
@@ -1062,17 +1157,18 @@ public class CPU {
                 REGISTERS.SetFlag(GBRegisters.Mask.Carry, ((a & 0xFF) + (b & 0xFF)) > 0xFF);
 
                 REGISTERS.SP = (ushort)result;
-                return 16;
+                
+                break;
             }
             
             case 0xE9: // JP HL
                 REGISTERS.PC = REGISTERS.HL;
-                return 4;
+                break;
             
             case 0xEA: { // LD (ushort), A
-                ushort address = gameboy.ReadU16(ref REGISTERS.PC);
-                gameboy.WriteByte(address, REGISTERS.A);
-                return 16;
+                ushort address = ReadU16(ref REGISTERS.PC);
+                WriteByte(address, REGISTERS.A);
+                break;
             }
             
             // 0xEB UNUSED
@@ -1080,55 +1176,59 @@ public class CPU {
             // 0xED UNUSED
                 
             case 0xEE: // XOR A, byte
-                Xor(ref REGISTERS.A, gameboy.ReadByte(REGISTERS.PC++));
-                return 8;
+                Xor(ref REGISTERS.A, ReadByte(REGISTERS.PC++));
+                break;
             
             case 0xEF: // RST 28h
-                gameboy.PushU16( ref REGISTERS.SP, REGISTERS.PC);
+                PushU16( ref REGISTERS.SP, REGISTERS.PC);
                 REGISTERS.PC = 0x0028;
-                return 0;
+                break;
             
             // -------- 0xFx --------
             
             case 0xF0: { // LD A, (FF00 + byte)
-                REGISTERS.A = gameboy.ReadByte((ushort)(0xFF00 + gameboy.ReadByte(REGISTERS.PC++)));
-                return 12;
+                var addr = (ushort)(0xFF00 + ReadByte(REGISTERS.PC++));
+                REGISTERS.A = ReadByte(addr);
+                break;
             }
             
             case 0xF1: { // POP AF
-                ushort value = gameboy.PopU16(ref REGISTERS.SP);
+                ushort value = PopU16(ref REGISTERS.SP);
                 REGISTERS.AF = value;
-                return 0;
+                break;
             }
             
             case 0xF2: { // LD A, (FF00 + C)
-                REGISTERS.A = gameboy.ReadByte((ushort)(0xFF00 + REGISTERS.C));
-                return 8;
+                REGISTERS.A = ReadByte((ushort)(0xFF00 + REGISTERS.C));
+                break;
             }
             
             case 0xF3: // DI
                 INTERRUPT_MASTER_ENABLE = false;
                 ENABLE_INTERRUPT_DELAY = -1;
-                return 4;
+                break;
             
             // 0xF4 UNUSED
             
             case 0xF5: // PUSH AF
-                gameboy.PushU16( ref REGISTERS.SP, REGISTERS.AF);
-                return 0;
+                PushU16( ref REGISTERS.SP, REGISTERS.AF);
+                Tick(4);
+                break;
             
             case 0xF6: // OR A, byte
-                Or(ref REGISTERS.A, gameboy.ReadByte(REGISTERS.PC++));
-                return 8;
+                Or(ref REGISTERS.A, ReadByte(REGISTERS.PC++));
+                break;
             
             case 0xF7: // RST 30h
-                gameboy.PushU16( ref REGISTERS.SP, REGISTERS.PC);
+                PushU16( ref REGISTERS.SP, REGISTERS.PC);
                 REGISTERS.PC = 0x0030;
-                return 0;
+                break;
             
             case 0xF8: { // LD HL, SP+byte
                 ushort sp = REGISTERS.SP;
-                sbyte offset = unchecked((sbyte)gameboy.ReadByte(REGISTERS.PC++));
+                sbyte offset = unchecked((sbyte)ReadByte(REGISTERS.PC++));
+                
+                Tick(4);
 
                 int result = sp + offset;
 
@@ -1140,38 +1240,39 @@ public class CPU {
                     ((sp & 0xFF) + (offset & 0xFF)) > 0xFF);
 
                 REGISTERS.HL = (ushort)result;
-                return 12;
+                break;
             }
             
             case 0xF9:  // LD SP, HL
                 REGISTERS.SP = REGISTERS.HL;
-                return 8;
+                Tick(4);
+                break;
             
             case 0xFA: { // LD A, (u16)
-                ushort address = gameboy.ReadU16(ref REGISTERS.PC);
-                REGISTERS.A = gameboy.ReadByte(address);
-                return 16;
+                ushort address = ReadU16(ref REGISTERS.PC);
+                REGISTERS.A = ReadByte(address);
+                break;
             }
             
             case 0xFB: // EI
                 ENABLE_INTERRUPT_DELAY = 2;
-                return 4;
+                break;
             
             // 0xFC UNUSED
             // 0xFD UNUSED
             
             case 0xFE: { // CP A, u8
-                byte value = gameboy.ReadByte(REGISTERS.PC++);
+                byte value = ReadByte(REGISTERS.PC++);
                 Compare(REGISTERS.A, value);
-                return 8;
+                break;
             }
             
             case 0xFF: // RST 38h
-                gameboy.PushU16( ref REGISTERS.SP, REGISTERS.PC);
+                PushU16( ref REGISTERS.SP, REGISTERS.PC);
                 REGISTERS.PC = 0x0038;
-                return 0;
+                break;
 
-            default: throw new Exception($"Unsupported OPCode: {opcode:X}");
+            default: throw new Exception($"Unsupported OPCode: {opcode:X} (PC {REGISTERS.PC})");
         }
     }
     
@@ -1199,23 +1300,24 @@ public class CPU {
         }
     }
     
-    private int CBTable(byte opcode) {
+    private void CBTable(byte opcode) {
         int group = opcode >> 6;
         int op = (opcode >> 3) & 7;
         int target = opcode & 7;
 
         if (target == 6) {
-            byte value = gameboy.ReadByte(REGISTERS.HL);
+            byte value = ReadByte(REGISTERS.HL);
             byte result = ExecuteCBOperation(group, op, value);
-            gameboy.WriteByte(REGISTERS.HL, result);
-            return group == 1 ? 12 : 16;
+            WriteByte(REGISTERS.HL, result);
+            if (group == 0) Tick(4);
+            return;
         }
 
         byte register = ReadCBRegister(target);
         byte reg_result = ExecuteCBOperation(group, op, register);
         WriteCBRegister(target, reg_result);
         
-        return 8;
+        Tick(4);
     }
     
     private byte ExecuteCBOperation(int group, int operation, byte value) {

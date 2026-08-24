@@ -49,7 +49,7 @@ public class Joypad {
         button_states[button] = true;
         
         if (gameboy.CPU.STOPPED) gameboy.CPU.STOPPED = false; 
-        gameboy.RequestInterrupt(4);
+        gameboy.RequestInterrupt(CPU.InterruptMask.Joypad);
     }
 
     public void Release(JoypadButtons button) => button_states[button] = false;

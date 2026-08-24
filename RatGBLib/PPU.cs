@@ -164,15 +164,6 @@ public class PPU {
             
             int sprite_pixel_x = pixels_drawn - sprite.X;
             int sprite_pixel_y = LY - sprite.Y;
-
-            if (sprite.Y < 0 && LY >= 0) {
-                Console.WriteLine(
-                    $"TOP SPRITE: " +
-                    $"sprite.Y={sprite.Y}, " +
-                    $"LY={LY}, " +
-                    $"pixelY={sprite_pixel_y}, " +
-                    $"tile={sprite.tile:X2}");
-            }
             
             if (sprite_pixel_x < 0 || sprite_pixel_x >= 8) continue;
 
@@ -200,76 +191,65 @@ public class PPU {
             break;
         }
     }
-    
-    public void Execute(int cycles) {
-        for (int i = 0; i < cycles; i++) {
-            cycle_counter++;
 
-            switch (mode) {
-                case STATMode.HBLANK: break;
-                case STATMode.VBLANK: break;
-                case STATMode.OAM_SEARCH:
-                    // Do sprite lookups
-                    OAMLookup();
-                    break;
-                case STATMode.LCD_TRANSFER:
-                    // Background lookup/draw single pixel
+    private bool old_stat_line = false;
+    public void Execute() {
+        if (!LCDEnabled) return;
+        
+        cycle_counter++;
+
+        switch (mode) {
+            case STATMode.HBLANK: break;
+            case STATMode.VBLANK: break;
+            case STATMode.OAM_SEARCH:
+                // Do sprite lookups
+                OAMLookup();
+                break;
+            case STATMode.LCD_TRANSFER:
+                // Background lookup/draw single pixel
+                if (pixels_drawn < 160) {
                     byte background_color = DrawBackgroundPixel();
                     DrawSpritePixel(background_color);
                     pixels_drawn++;
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
-            
-            if (cycle_counter >= GameBoy.DOTS_PER_SCANLINE) {
-                cycle_counter -= GameBoy.DOTS_PER_SCANLINE;
+                }
 
-                LY++;
-                LYC_interrupt_fired_this_line = false;
-                pixels_drawn = 0;
-                
-                if (LY == 144) gameboy.RequestInterrupt(0);
-                if (LY >= GameBoy.SCANLINES_PER_FRAME) LY = 0;
-            }
-            
-            STATMode old_mode = mode;
-            
-            if (LY >= 144) mode = STATMode.VBLANK;
-            else if (cycle_counter < 80) mode = STATMode.OAM_SEARCH;
-            else if (pixels_drawn < 160) mode = STATMode.LCD_TRANSFER;
-            else mode = STATMode.HBLANK;
-            
-            bool LYC_match = (LY == LYC);
-            
-            if (old_mode != mode) {
-                switch (mode) {
-                    case STATMode.HBLANK:
-                        if ((_STAT & 0x08) != 0) gameboy.RequestInterrupt(1);
-                        break;
-                    case STATMode.VBLANK:
-                        if ((_STAT & 0x10) != 0) gameboy.RequestInterrupt(1);
-                        // UPDATE OFFSCREEN MONOGAME TEXTURE AND FLIP WHEN READY TO RENDER
-                        break;
-                    case STATMode.OAM_SEARCH:
-                        if ((_STAT & 0x20) != 0) gameboy.RequestInterrupt(1);
-                        break;
-                    case STATMode.LCD_TRANSFER:
-                        
-                        break;
-                }
-            } 
-            
-            if (LYC_match && (_STAT & 0x40) != 0) {
-                // Trigger STAT interrupt if needed 
-                if (!LYC_interrupt_fired_this_line) {
-                    gameboy.RequestInterrupt(1);
-                    LYC_interrupt_fired_this_line = true;
-                }
-            }
-            
-            UpdateHardwareSTATBits(mode);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException();
         }
+        
+        if (cycle_counter >= GameBoy.DOTS_PER_SCANLINE) {
+            cycle_counter -= GameBoy.DOTS_PER_SCANLINE;
+
+            LY++;
+            LYC_interrupt_fired_this_line = false;
+            pixels_drawn = 0;
+            
+            if (LY == 144) gameboy.RequestInterrupt(CPU.InterruptMask.VBlank); 
+            if (LY >= GameBoy.SCANLINES_PER_FRAME) LY = 0;
+        }
+        
+        if (LY >= 144) mode = STATMode.VBLANK;
+        else if (cycle_counter < 80) mode = STATMode.OAM_SEARCH;
+        else if (cycle_counter < 252) mode = STATMode.LCD_TRANSFER;
+        else mode = STATMode.HBLANK;
+        
+        bool LYC_match = (LY == LYC);
+        
+        bool hblank_int_operand = (mode == STATMode.HBLANK) && ((_STAT & 0x08) != 0);
+        bool vblank_int_operand = (mode == STATMode.VBLANK) && ((_STAT & 0x10) != 0);
+        bool oam_int_operand    = (mode == STATMode.OAM_SEARCH) && ((_STAT & 0x20) != 0);
+        bool lyc_int_operand    = (LY == LYC) && ((_STAT & 0x40) != 0);
+
+        bool current_stat_line = hblank_int_operand || vblank_int_operand || oam_int_operand || lyc_int_operand;
+
+        if (!old_stat_line && current_stat_line) {
+            gameboy.RequestInterrupt(CPU.InterruptMask.LCD); 
+        }
+
+        old_stat_line = current_stat_line;
+
+        UpdateHardwareSTATBits(mode);
     }
 }
 
