@@ -26,8 +26,8 @@ public class RatGBGame : Game {
     public FullResolutionRenderTarget game_render_target;
 
     //public static GameBoy gameboy = new GameBoy();
-    private static GameboyWithBuffer gameboy;
-    public static GameboyWithBuffer gb => gameboy;
+    private static GameboyEmulator gameboy;
+    public static GameboyEmulator gb => gameboy;
     private Texture2D memory_texture;
     private Color[] memory_colors = new Color[256 * 256];
     
@@ -53,6 +53,10 @@ public class RatGBGame : Game {
         windows = OperatingSystem.IsWindows();
     }
 
+    ~RatGBGame() {
+        while (SaveGame.CurrentlySaving) ;
+    }
+    
     protected override void Initialize() {
         State.Initialize(this, Content, _graphics, Window);
         base.Initialize();
@@ -69,7 +73,7 @@ public class RatGBGame : Game {
 
         ConsoleInputRunner.using_list = ConsoleInputRunner.using_list + "using RatGBLib;\nusing RatGB;\nusing static RatGB.RatGBGame;"; 
         
-        gameboy = new GameboyWithBuffer();
+        gameboy = new GameboyEmulator();
         
         Interface.Load();
         
@@ -86,7 +90,7 @@ public class RatGBGame : Game {
         //gb.LoadROM("metroid2.gb");
         //gb.LoadROM("kirby.gb");
         //gb.LoadROM("pkmnred.gb");
-        //gb.LoadROM("zelda.gb");
+        gb.LoadROM("zelda.gb");
         //gb.LoadROM("buttontest.gb");
         //gb.LoadROM("int.gb");
         
@@ -99,7 +103,7 @@ public class RatGBGame : Game {
         //gb.LoadROM("mooneye-test-suite/acceptance/timer/div_write.gb");
         //gb.LoadROM("mooneye-test-suite/acceptance/timer/tima_reload.gb");
         
-        gb.LoadROM("mooneye-test-suite/acceptance/push_timing.gb");
+        //gb.LoadROM("mooneye-test-suite/acceptance/push_timing.gb");
         //gb.LoadROM("mooneye-test-suite/acceptance/pop_timing.gb");
         //gb.LoadROM("mooneye-test-suite/acceptance/oam_dma/sources-GS.gb");
         

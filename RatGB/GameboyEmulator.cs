@@ -8,7 +8,7 @@ using Raven.Engine;
 
 namespace RatGB;
 
-public class GameboyWithBuffer {
+public class GameboyEmulator {
     public GameBoy gameboy;
     
     public Texture2D texture;
@@ -24,12 +24,18 @@ public class GameboyWithBuffer {
 
     private string current_ROM = "";
     
-    public GameboyWithBuffer() {
+    public GameboyEmulator() {
         texture = new Texture2D(State.graphics_device, 160, 144);
     }
 
+    ~GameboyEmulator() {
+        while (SaveGame.CurrentlySaving) ;
+    }
+    
     private bool reloading = false;
     public void ReloadROM() {
+        while (SaveGame.CurrentlySaving) ;
+        
         Interlocked.Exchange(ref reloading, true);
         
         LoadROM(current_ROM);

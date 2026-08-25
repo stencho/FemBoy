@@ -86,12 +86,13 @@ public static class Interface {
             $"[A] {gb.gameboy.CPU.REGISTERS.A:X2}    [F] {gb.gameboy.CPU.REGISTERS.F:X2}\n" +
             $"[B] {gb.gameboy.CPU.REGISTERS.B:X2}    [C] {gb.gameboy.CPU.REGISTERS.C:X2}\n" +
             $"[D] {gb.gameboy.CPU.REGISTERS.D:X2}    [E] {gb.gameboy.CPU.REGISTERS.E:X2}\n" +
-            $"[H] {gb.gameboy.CPU.REGISTERS.H:X2}    [L] {gb.gameboy.CPU.REGISTERS.L:X2}\n\n";
+            $"[H] {gb.gameboy.CPU.REGISTERS.H:X2}    [L] {gb.gameboy.CPU.REGISTERS.L:X2}\n";
         return output;
     }
 
     public static string PrintCartridgeInfo() {
         string output = "[Cartridge]\n";
+        output += $"[CRC32]    {gb.gameboy.cartridge.ROMCRC32:X8}\n";
         output += $"[Type]     {gb.gameboy.cartridge.cartridge_type:X2}\n";
         output += $"[ROM code] {gb.gameboy.cartridge.ROM_size_code:X2}\n";
         output += $"[RAM code] {gb.gameboy.cartridge.RAM_size_code:X2}\n";

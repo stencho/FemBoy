@@ -1,15 +1,26 @@
-using RatGBLib.MBC;
+using System.Runtime.Intrinsics.Arm;
+using RatGBLib.Mappers;
+using RatGBLib.Mappers.MBC;
+using Crc32 = System.IO.Hashing.Crc32;
 
 namespace RatGBLib;
 
 public class Cartridge {
     public byte[] ROM;
+    public uint ROMCRC32;
     
     public byte cartridge_type => ROM[0x147];
     public byte ROM_size_code => ROM[0x148];
     public byte RAM_size_code => ROM[0x149];
     
     private IMapper mapper;
+    public IMapper Mapper => mapper;
+
+    private bool _has_battery = false;
+    public bool HasBattery => _has_battery;
+
+    private bool _has_RAM = false;
+    public bool HasRAM => _has_RAM;
     
     public Cartridge(string file_name) {
         using (FileStream file = new(file_name, FileMode.Open)) {
@@ -17,13 +28,18 @@ public class Cartridge {
             file.ReadExactly(ROM, 0, ROM.Length);
         }
 
+        ROMCRC32 = Crc32.HashToUInt32(ROM.AsSpan());
+        
         switch (cartridge_type) {
             case 0x00: case 0x08: case 0x09:
                 mapper = new NoMapper(this);
                 break;
 
             case 0x01: case 0x02: case 0x03:
-                mapper = new MBC1(this);
+                _has_RAM = cartridge_type != 0x01;
+                _has_battery = cartridge_type == 0x03;
+                
+                mapper = new MBC1(this, _has_battery);
                 break;
             
             /*

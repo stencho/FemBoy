@@ -6,6 +6,7 @@ namespace RatGBLib;
 
 public class GameBoy {
     public const int CYCLES_PER_FRAME = 70_224;
+    public const uint CLOCK_SPEED_HZ = 4_194_304;
     public const int SCANLINES_PER_FRAME = 154;
     public const int DOTS_PER_SCANLINE = 456;
 
@@ -101,10 +102,7 @@ public class GameBoy {
         WriteByte(0xFFFF, 0x00); // IE (Interrupt Enable)
     }
     
-    public uint last_tima_read = 0;
-    public uint last_tima_write = 0;
     public byte ReadByte(ushort address) {
-        
         // INTERRUPT REGISTERS
         if (address == InterruptRegisterAddresses.IF) return (byte)(CPU.REGISTERS.IF | 0xE0);
         if (address == InterruptRegisterAddresses.IE) return CPU.REGISTERS.IE;
@@ -125,7 +123,8 @@ public class GameBoy {
         if (address == PPURegisterAddresses.OBP1) return PPU.OBP1;
         if (address == PPURegisterAddresses.WY) return PPU.WY;
         if (address == PPURegisterAddresses.WX) return PPU.WX;
-
+        if (address == PPURegisterAddresses.DMA) return DMA.Register;
+        
         // TIMER REGISTERS
         if (address == TimerRegisterAddresses.DIV) return timer.DIV;
         if (address == TimerRegisterAddresses.TIMA) return timer.TIMA;
@@ -139,10 +138,7 @@ public class GameBoy {
         if (address == SerialRegisterAddresses.SB) return serial.SB;
         if (address == SerialRegisterAddresses.SC) return serial.SC;
         
-        
-        // AUDIO REGISTERS AND UNMAPPED REGIONS
-        // CHANNEL 1
-        
+        // AUDIO REGISTERS 
         if (address == AudioRegisterAddresses.NR10) return Audio.NR10;
         if (address == AudioRegisterAddresses.NR11) return Audio.NR11;
         if (address == AudioRegisterAddresses.NR12) return Audio.NR12;
@@ -169,25 +165,17 @@ public class GameBoy {
         if (address == AudioRegisterAddresses.NR51) return Audio.NR51;
         if (address == AudioRegisterAddresses.NR52) return Audio.NR52;
         
-        // Unmapped APU area bits
+        // Unmapped bits
         if (address == 0xFF03 || address is >= 0xFF08 and <= 0xFF0E || address == 0xFF15 || address == 0xFF1F || address is >= 0xFF27 and <= 0xFF2F || address is >= 0xFF4C and <= 0xFF7F) { return 0xFF; }
         
         // CARTRIDGE
-        if (address < 0x8000 || (address >= 0xA000 && address < 0xC000)) {
-            return cartridge.Read(address);
-        }
+        if (address < 0x8000 || (address >= 0xA000 && address < 0xC000)) { return cartridge.Read(address); }
         
         // VRAM - RETURN 0xFF WHEN READ AND PPU IS IN LCD_TRANSFER MODE
-        if (address is >= 0x8000 and <= 0x9FFF) {
-            if (PPU.Mode == PPU.STATMode.LCD_TRANSFER) return 0xFF;
-        }
+        if (address is >= 0x8000 and <= 0x9FFF) { if (PPU.Mode == PPU.STATMode.LCD_TRANSFER) return 0xFF; }
 
         // ECHO RAM
         if (address >= 0xE000 && address <= 0xFDFF) return RAM[address - 0x2000];
-
-        if (address == (ushort)PPURegisterAddresses.DMA) {
-            return DMA.Register;
-        }
         
         return RAM[address];
     }
@@ -213,17 +201,12 @@ public class GameBoy {
         if (address == PPURegisterAddresses.WY) { PPU.WY = value; return; }
         if (address == PPURegisterAddresses.WX) { PPU.WX = value; return; }
         
-        if (address == PPURegisterAddresses.DMA) {
-            DMA.Register = value;
-            DMA.Start(value);
-            return;
-        }
+        if (address == PPURegisterAddresses.DMA) { DMA.Register = value; DMA.Start(value); return; }
         
         // TIMER REGISTERS
         if (address == TimerRegisterAddresses.DIV) { timer.ResetDivider(); return; }
 
         if (address == TimerRegisterAddresses.TIMA) { 
-            last_tima_write = TotalCycles;
             if (timer.ReloadPending) {
                 if (timer.ReloadDelay > 0) {
                     timer.CancelPendingTIMAReload(value);
@@ -257,8 +240,6 @@ public class GameBoy {
         if (address == SerialRegisterAddresses.SC) { serial.SC = value; return; }
         
         // AUDIO REGISTERS
-
-        // CHANNEL 1
         if (address == AudioRegisterAddresses.NR10) { Audio.NR10 = value; return; }
         if (address == AudioRegisterAddresses.NR11) { Audio.NR11 = value; return; }
         if (address == AudioRegisterAddresses.NR12) { Audio.NR12 = value; return; }
@@ -285,7 +266,7 @@ public class GameBoy {
         if (address == AudioRegisterAddresses.NR51) { Audio.NR51 = value; return; }
         if (address == AudioRegisterAddresses.NR52) { Audio.NR52 = value; return; }
 
-        // Unmapped APU area bits
+        // Unmapped bits
         if (address == 0xFF03 || address is >= 0xFF08 and <= 0xFF0E || address == 0xFF15 || address == 0xFF1F || address is >= 0xFF27 and <= 0xFF2F || address is >= 0xFF4C and <= 0xFF7F) { return; }
         
         // CARTRIDGE
@@ -321,7 +302,7 @@ public class GameBoy {
 
     public int CyclesThisFrame = 0;
     public uint TotalCycles = 0;
-    
+    private uint save_timer = 0;
     public void Tick(int cycles) {
         for (int i = 0; i < cycles; i++) {
             TotalCycles++;
@@ -331,6 +312,7 @@ public class GameBoy {
             DMA.Execute();
             serial.Execute();
         }
+        
         CyclesThisFrame += cycles;
     }
     
@@ -339,6 +321,13 @@ public class GameBoy {
         
         int cycles = CyclesThisFrame;
         CyclesThisFrame = 0;
+
+        save_timer++;
+        if (save_timer > CLOCK_SPEED_HZ) {
+            save_timer = 0;
+            if (cartridge.HasBattery && !SaveGame.CurrentlySaving) 
+                cartridge.Mapper.SaveRAM();
+        }
         
         return cycles;
     }

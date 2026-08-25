@@ -1,7 +1,12 @@
-namespace RatGBLib.MBC;
+using RatGBLib.Mappers;
+
+namespace RatGBLib.Mappers.MBC;
 
 public class MBC1 : IMapper {
+    Cartridge cartridge;
+    
     public byte[] RAM;
+    public int RAM_size;
     public bool RAMEnabled;
     
     private byte rom_bank_lo = 1;
@@ -9,14 +14,16 @@ public class MBC1 : IMapper {
     
     private byte banking_mode = 0;
     
-    public int RAM_size;
-    
     public int RAM_bank => banking_mode == 1 ? rom_bank_hi : 0;
-
-    Cartridge cartridge;
     
-    public MBC1(Cartridge cartridge) {
+    private bool battery_saving = false;
+    public bool BatterySaving => battery_saving;
+    private bool RAM_dirty = false;
+    public bool RAMDirty => RAM_dirty;
+    
+    public MBC1(Cartridge cartridge, bool battery_save) {
         this.cartridge = cartridge;
+        battery_saving = battery_save;
         
         int ram_size = cartridge.RAM_size_code switch
         {
@@ -31,9 +38,13 @@ public class MBC1 : IMapper {
         };
 
         RAM_size = ram_size;
-        
-        if (ram_size > 0) {
-            RAM = new byte[ram_size];
+
+        if (battery_saving) {
+            RAM = SaveGame.Load(cartridge.ROMCRC32, ram_size);
+        } else {
+            if (ram_size > 0) {
+                RAM = new byte[ram_size];
+            }
         }
 
     }
@@ -84,8 +95,20 @@ public class MBC1 : IMapper {
         } else if (address >= 0x6000 && address < 0x8000) {
             banking_mode = (byte)(value & 0x01);
         } else if (address >= 0xA000 && address < 0xC000) {
-            if (RAMEnabled && RAM_size != 0)
+            if (RAMEnabled && RAM_size != 0) {
                 RAM[GetRAMOffset(address)] = value;
+
+                if (battery_saving) {
+                    RAM_dirty = true;
+                }
+            }
+        }
+    }
+
+    public void SaveRAM() {
+        if (RAM_dirty) {
+            SaveGame.Save(cartridge.ROMCRC32, RAM);
+            RAM_dirty = false;
         }
     }
 }

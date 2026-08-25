@@ -1,9 +1,11 @@
-namespace RatGBLib.MBC;
+using RatGBLib.Mappers;
 
-public class MBC3 : IMapper {
+namespace RatGBLib.Mappers.MBC;
+
+public class MBC2 : IMapper {
     Cartridge cartridge;
 
-    public MBC3(Cartridge cartridge) {
+    public MBC2(Cartridge cartridge) {
         this.cartridge = cartridge;
     }
 
@@ -12,6 +14,10 @@ public class MBC3 : IMapper {
     }
 
     public void Write(ushort address, byte value) {
+        throw new NotImplementedException();
+    }
+
+    public void SaveRAM() {
         throw new NotImplementedException();
     }
 }
