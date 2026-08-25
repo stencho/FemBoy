@@ -2,19 +2,19 @@ using System.Diagnostics;
 
 namespace RatGBLib;
 
-public enum PPURegisterAddresses : ushort {
-    LCDC = 0xFF40, // FF40 - LCD Control
-    STAT = 0xFF41, // FF41 - LCD Status
-    SCY  = 0xFF42, // FF42 - Scroll Y
-    SCX  = 0xFF43, // FF43 - Scroll X
-    LY   = 0xFF44, // FF44 - LCD Y coordinate
-    LYC  = 0xFF45, // FF45 - LY Compare
-    DMA  = 0xFF46, // FF46 - OAM DMA
-    BGP  = 0xFF47, // FF47 - BG Palette
-    OBP0 = 0xFF48, // FF48 - Object Palette 0
-    OBP1 = 0xFF49, // FF49 - Object Palette 1
-    WY   = 0xFF4A, // FF4A - Window Y position
-    WX   = 0xFF4B  // FF4B - Window X position
+public static class PPURegisterAddresses {
+    public const ushort LCDC = 0xFF40; // FF40 - LCD Control
+    public const ushort STAT = 0xFF41; // FF41 - LCD Status
+    public const ushort SCY  = 0xFF42; // FF42 - Scroll Y
+    public const ushort SCX  = 0xFF43; // FF43 - Scroll X
+    public const ushort LY   = 0xFF44; // FF44 - LCD Y coordinate
+    public const ushort LYC  = 0xFF45; // FF45 - LY Compare
+    public const ushort DMA  = 0xFF46; // FF46 - OAM DMA
+    public const ushort BGP  = 0xFF47; // FF47 - BG Palette
+    public const ushort OBP0 = 0xFF48; // FF48 - Object Palette 0
+    public const ushort OBP1 = 0xFF49; // FF49 - Object Palette 1
+    public const ushort WY   = 0xFF4A; // FF4A - Window Y position
+    public const ushort WX   = 0xFF4B; // FF4B - Window X position
 }
 
 class Sprite {
@@ -49,6 +49,8 @@ public class PPU {
     private int pixels_drawn = 0;
     
     public readonly byte[] frame_buffer = new byte[160 * 144];
+    public readonly byte[] frame_buffer_offscreen = new byte[160 * 144];
+    public bool frame_ready = false;
     
     private GameBoy gameboy;
 
@@ -57,10 +59,12 @@ public class PPU {
     public PPU(GameBoy gameboy) {
         this.gameboy = gameboy;
 
-        for (var index = 0; index < frame_buffer.Length; index++) {
-            var b = frame_buffer[index];
-            frame_buffer[index] = 1;
+        for (var index = 0; index < frame_buffer_offscreen.Length; index++) {
+            var b = frame_buffer_offscreen[index];
+            frame_buffer_offscreen[index] = 1;
         }
+        
+        Array.Copy(frame_buffer_offscreen, frame_buffer, frame_buffer.Length);
     }
 
     public byte LY = 0x00;
@@ -88,7 +92,8 @@ public class PPU {
     public bool BGTileMap => (LCDC & 0x08) != 0;
     public int SpriteHeight => (LCDC & 0x04) != 0 ? 16 : 8;
     public bool OBJEnabled => (LCDC & 0x02) != 0;
-    public bool BGEnabled => (LCDC & 0x01) != 0;
+    public bool BGWindowEnabled => (LCDC & 0x01) != 0;
+
     
     public byte STAT {
         get => _STAT;
@@ -114,6 +119,8 @@ public class PPU {
     private STATMode mode = STATMode.OAM_SEARCH;
 
     byte DrawBackgroundPixel() {
+        if (!BGWindowEnabled) return 0;
+        
         int x = pixels_drawn;
         int y = LY;
 
@@ -126,11 +133,50 @@ public class PPU {
         int pixel_x = bg_x & 7;
         int pixel_y = bg_y & 7;
 
+        int window_x = x - (WX - 7);
+        int window_y = LY - WY;
+
+        if (WindowEnabled) {
+            if (LY >= WY && x >= (WX - 7)) {
+                ushort w_tile_map = (ushort)((WindowTileMap) ? 0x9C00 : 0x9800);
+                
+                int w_tile_x = window_x >> 3;
+                int w_tile_y = window_y >> 3;
+                
+                ushort w_tile_address = (ushort)(w_tile_map + (w_tile_y * 32) + w_tile_x);
+                byte w_tile_id = gameboy.ReadVRAM(w_tile_address);
+
+                int w_pixel_y = window_y & 7;
+                
+                ushort w_tile_data = 0;
+                if (TileDataSelect)
+                    w_tile_data = (ushort)(0x8000 + (w_tile_id * 16) + (w_pixel_y * 2));
+                else
+                    w_tile_data = (ushort)(0x9000 + ((sbyte)w_tile_id * 16) + (w_pixel_y * 2));
+                
+                byte w_lo = gameboy.ReadVRAM(w_tile_data);
+                byte w_hi = gameboy.ReadVRAM((ushort)(w_tile_data + 1));
+                
+                int w_bit = 7 - (window_x & 7);
+                
+                byte w_color = (byte)(((w_hi >> w_bit) & 1) << 1 | ((w_lo >> w_bit) & 1));
+                byte w_shade = (byte)((BGP >> (w_color * 2)) & 0x03);
+                
+                frame_buffer_offscreen[x + y * 160] = w_shade;
+                return w_color;
+            }
+        }
+
         ushort tile_map = (ushort)((BGTileMap) ? 0x9C00 : 0x9800);
         ushort tile_address = (ushort)(tile_map + (tile_y * 32) + tile_x);
 
         byte tile_id = gameboy.ReadVRAM(tile_address);
-        ushort tile_data = (ushort)(0x8000 + (tile_id * 16) + (pixel_y * 2));
+
+        ushort tile_data = 0;
+        if (TileDataSelect)
+            tile_data = (ushort)(0x8000 + (tile_id * 16) + (pixel_y * 2));
+        else
+            tile_data = (ushort)(0x9000 + ((sbyte)tile_id * 16) + (pixel_y * 2));
 
         byte lo = gameboy.ReadVRAM(tile_data);
         byte hi = gameboy.ReadVRAM((ushort)(tile_data + 1));
@@ -140,7 +186,7 @@ public class PPU {
         byte color = (byte)(((hi >> bit) & 1) << 1 | ((lo >> bit) & 1));
         byte shade = (byte)((BGP >> (color * 2)) & 0x03);
         
-        frame_buffer[x + y * 160] = shade;
+        frame_buffer_offscreen[x + y * 160] = shade;
         return color;
     }
 
@@ -159,6 +205,8 @@ public class PPU {
     }
 
     void DrawSpritePixel(byte background_color) {
+        if (!OBJEnabled) return;
+        
         for (var index = 0; index < visible_sprites.Count; index++) {
             Sprite sprite = visible_sprites[index];
             
@@ -187,14 +235,17 @@ public class PPU {
             byte palette = sprite.Palette1 ? OBP1 : OBP0;
             byte shade = (byte)((palette >> (color * 2)) & 0x03);
 
-            frame_buffer[pixels_drawn + LY * 160] = shade;
+            frame_buffer_offscreen[pixels_drawn + LY * 160] = shade;
             break;
         }
     }
 
     private bool old_stat_line = false;
     public void Execute() {
-        if (!LCDEnabled) return;
+        if (!LCDEnabled) {
+            LY = 0;
+            return;
+        }
         
         cycle_counter++;
 
@@ -225,7 +276,14 @@ public class PPU {
             LYC_interrupt_fired_this_line = false;
             pixels_drawn = 0;
             
-            if (LY == 144) gameboy.RequestInterrupt(CPU.InterruptMask.VBlank); 
+            if (LY == 144) {
+                if (!frame_ready) {
+                    Array.Copy(frame_buffer_offscreen, frame_buffer, frame_buffer.Length);
+                    frame_ready = true;
+                }
+
+                gameboy.RequestInterrupt(CPU.InterruptMask.VBlank);
+            } 
             if (LY >= GameBoy.SCANLINES_PER_FRAME) LY = 0;
         }
         

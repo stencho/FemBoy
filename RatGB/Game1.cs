@@ -1,46 +1,91 @@
 ﻿using System;
-using System.Diagnostics;
-using System.IO;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using MonoGame.Framework.Utilities;
+using RatGB;
 using RatGBLib;
+using Raven.Console;
+using Raven.Engine;
+using Raven.Engine.Controls;
+using Raven.Engine.Scene3D;
+using Raven.Graphics.Drawing2D;
+using Raven.UI;
+using WaterTrans.GlyphLoader;
 
 namespace RatGB;
 
-public class Game1 : Game {
+public class RatGBGame : Game {
     private GraphicsDeviceManager _graphics;
-    private SpriteBatch _spriteBatch;
+    private bool windows = true;
+    
+    public static FullResolutionRenderTarget output_render_target;
+    public FullResolutionRenderTarget game_render_target;
 
-    private GameBoy gb = new GameBoy();
-
+    //public static GameBoy gameboy = new GameBoy();
+    private static GameboyWithBuffer gameboy;
+    public static GameboyWithBuffer gb => gameboy;
     private Texture2D memory_texture;
-    private Texture2D frame_texture;
-    
     private Color[] memory_colors = new Color[256 * 256];
-    private Color[] frame_buffer = new Color[160 * 144];
     
-    private Input input = new Input();
+    internal static (string bind, object[] bind_data)[]
+        bind_list = [
+            ("toggle_memory_window", [Keys.F1]),
+        ];
+
+    internal static (string bind, object[] bind_data)[]
+        emu_bind_list = [
+            ("copy_debug_info", [Keys.Insert]),
+            ("reload_rom", [Keys.R]),
+        ];
+    public static BindWatcher ui_binds;
+    public static BindWatcher emulator_binds;
     
-    public Game1() {
+    public RatGBGame() {
         _graphics = new GraphicsDeviceManager(this);
         Content.RootDirectory = "Content";
-        IsMouseVisible = true;
-        
-        _graphics.PreferredBackBufferWidth = 1024;
-        _graphics.PreferredBackBufferHeight = 512;
-        _graphics.ApplyChanges();
         
         IsFixedTimeStep = true;
         
-        Console.SetOut(TextWriter.Null);
+        windows = OperatingSystem.IsWindows();
+    }
+
+    protected override void Initialize() {
+        State.Initialize(this, Content, _graphics, Window);
+        base.Initialize();
+        
+        ui_binds = new BindWatcher(bind_list);
+        ui_binds.cares_about_UI_focus = false;
+
+        emulator_binds = new BindWatcher(emu_bind_list);
+        emulator_binds.cares_about_UI_focus = true;
+    }
+
+    protected override void LoadContent() {
+        State.Load(Content);
+
+        ConsoleInputRunner.using_list = ConsoleInputRunner.using_list + "using RatGBLib;\nusing RatGB;\nusing static RatGB.RatGBGame;"; 
+        
+        gameboy = new GameboyWithBuffer();
+        
+        Interface.Load();
+        
+        memory_texture = new Texture2D(GraphicsDevice, 256, 256, false, SurfaceFormat.Color);
+        
+        output_render_target = new FullResolutionRenderTarget();
+        game_render_target = new FullResolutionRenderTarget();
         
         //gb.LoadROM("gbmicrotest/000-write_to_x8000.gb");
         //gb.LoadROM("bully.gb");
         //gb.LoadROM("alley.gb");
         
         //gb.LoadROM("tetris.gb");
-        gb.LoadROM("kirby.gb");
+        //gb.LoadROM("metroid2.gb");
+        //gb.LoadROM("kirby.gb");
+        //gb.LoadROM("pkmnred.gb");
         //gb.LoadROM("zelda.gb");
         //gb.LoadROM("buttontest.gb");
         //gb.LoadROM("int.gb");
@@ -54,9 +99,11 @@ public class Game1 : Game {
         //gb.LoadROM("mooneye-test-suite/acceptance/timer/div_write.gb");
         //gb.LoadROM("mooneye-test-suite/acceptance/timer/tima_reload.gb");
         
-        //gb.LoadROM("mooneye-test-suite/acceptance/push_timing.gb");
+        gb.LoadROM("mooneye-test-suite/acceptance/push_timing.gb");
         //gb.LoadROM("mooneye-test-suite/acceptance/pop_timing.gb");
         //gb.LoadROM("mooneye-test-suite/acceptance/oam_dma/sources-GS.gb");
+        
+        //gb.LoadROM("mooneye-test-suite/acceptance/bits/unused_hwio-GS.gb");
         
         //gb.LoadROM("blargg/instr_timing/instr_timing.gb");
         //gb.LoadROM("blargg/halt_bug.gb");
@@ -75,93 +122,127 @@ public class Game1 : Game {
         //gb.LoadROM("blargg/cpu_instrs/individual/11-op a,(hl).gb");
         
         //gb.LoadROM("hb.gb");
-    }
-
-    protected override void Initialize() {
-        // TODO: Add your initialization logic here
-
-        base.Initialize();
-    }
-
-    protected override void LoadContent() {
-        _spriteBatch = new SpriteBatch(GraphicsDevice);
-        memory_texture = new Texture2D(GraphicsDevice, 256, 256, false, SurfaceFormat.Color);
-        frame_texture = new Texture2D(GraphicsDevice, 160, 144, false, SurfaceFormat.Color);
         
-        // TODO: use this.Content to load your game content here
+        update_thread = new Clock.UpdateThread("Update", UpdatethreadMethod);
+        State.LoadFinished(update_thread);
         
-    }
+        update_thread.tick_rate = gvars.get_float("g_tick_rate");
+        gvars.add_change_action("g_tick_rate", () => { update_thread.tick_rate = gvars.get_float("g_tick_rate"); });        
+        
+        Interface.memory_window.internal_draw_action = () => {
+            for (int i = 0; i < 0x10000; i++) {
+                byte value = gameboy.gameboy.ReadByte((ushort)i);
+            
+                if (i <= 0x3FFF) {
+                    memory_colors[i] = new Color(value, 0, 0);    
+                } else if (i <= 0x7FFF) {
+                    memory_colors[i] = new Color(0, value, 0);    
+                } else if (i <= 0x9FFF) {
+                    memory_colors[i] = new Color(0, 0, value);
 
-    private int cycles = 0;
+                } else if (i == 0xFF00) {
+                    memory_colors[i] = new Color(value, 0, value);
+
+                } else memory_colors[i] = new Color(value, value, value);
+            }
+        
+            memory_texture.SetData(memory_colors);
+
+            float ar = Interface.memory_window.client_area_aspect_ratio;
+            if (Interface.memory_window.client_size.X >= Interface.memory_window.client_size.Y) {
+                Draw2D.image(memory_texture, 
+                    new Vector2i((Interface.memory_window.client_size.X / 2f) - (Interface.memory_window.client_size.X / ar) / 2f, 0),
+                    new Vector2i(Interface.memory_window.client_size.X / ar, Interface.memory_window.client_size.Y));
+            } else {
+                Draw2D.image(memory_texture, 
+                    new Vector2i(0, (Interface.memory_window.client_size.X / 2f) - (Interface.memory_window.client_size.X * ar) / 2f),
+                    new Vector2i(Interface.memory_window.client_size.X, Interface.memory_window.client_size.Y * ar));
+            }
+        };
+
+    }
+    public static Clock.UpdateThread update_thread;
     
-    protected override void Update(GameTime gameTime) {
-        if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed ||
-            Keyboard.GetState().IsKeyDown(Keys.Escape))
-            Exit();
-        
-        input.Update(gb.joypad);
-        
-        while (cycles < GameBoy.CYCLES_PER_FRAME) {
-            cycles += gb.Execute();
-        }
-        
-        cycles = 0;
-        
-        // TODO: Add your update logic here
+    void UpdatethreadMethod() {
+        gameboy.Update();
+    }
+    
+    private int t_cycles = 0;
 
+    protected override void Update(GameTime gameTime) {
         base.Update(gameTime);
     }
-
+    
     protected override void Draw(GameTime gameTime) {
-        GraphicsDevice.Clear(Color.CornflowerBlue);
-
+        gameboy.Render();
         
-        for (int c = 0; c < 160 * 144; c++) {
-            byte b = gb.PPU.frame_buffer[c];
-            switch (b) {
-                case 0:
-                    frame_buffer[c] = new Color(255, 255, 255);
-                    break;
-                case 1: 
-                    frame_buffer[c] = new Color(255, 0, 0);
-                    break;
-                case 2: 
-                    frame_buffer[c] = new Color(0, 255, 0);
-                    break;
-                case 3: 
-                    frame_buffer[c] = new Color(0, 0, 255);
-                    break;
-            }
+        State.UpdateGraphics(gameTime);
+        ui_binds.Update();
+        emulator_binds.Update();
+        
+        if (ui_binds.just_pressed("toggle_memory_window")) {
+            State.UI.toggle_window(Interface.memory_window);
         }
         
-        for (int i = 0; i < 0x10000; i++) {
-            byte value = gb.ReadByte((ushort)i);
-            
-            if (i <= 0x3FFF) {
-                memory_colors[i] = new Color(value, 0, 0);    
-            } else if (i <= 0x7FFF) {
-                memory_colors[i] = new Color(0, value, 0);    
-            } else if (i <= 0x9FFF) {
-                memory_colors[i] = new Color(0, 0, value);
-
-            } else if (i == 0xFF00) {
-                memory_colors[i] = new Color(value, 0, value);
-
-            } else memory_colors[i] = new Color(value, value, value);
+        if (emulator_binds.just_pressed("copy_debug_info")) {
+            Interface.DebugInfoToClipboard();
         }
         
-        memory_texture.SetData(memory_colors);
-        frame_texture.SetData(frame_buffer);
+        if (emulator_binds.just_pressed("reload_rom")) {
+            gb.ReloadROM();
+        }
         
-        _spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.PointClamp);
-        _spriteBatch.Draw(memory_texture, new Rectangle(0, 0, 512, 512), Color.White);
-        _spriteBatch.Draw(frame_texture, new Rectangle(512, 0, 160 * 3, 144 * 3), Color.White);
+        if (State.engine_binds.double_tapped("exit")) {
+            Exit();
+        }
         
+        State.Render();
         
+        // draw canvas and interface to their respective full resolution render targets
+        State.graphics_device.SetRenderTarget(game_render_target.rt2D);
+        State.graphics_device.Clear(Color.Transparent);
         
-        _spriteBatch.End();
-        // TODO: Add your drawing code here
+        //draw game here
+        Draw2D.fill_rect_dither(Vector2i.Zero, State.resolution, 
+            UIColors.MiddleGrey.multiply_color(0.9f),
+            UIColors.MiddleGrey,
+            16
+        );
 
+        var ar = (float)State.resolution.X / (float)State.resolution.Y;
+        if (State.resolution.X >= State.resolution.Y) {
+            Draw2D.image(gameboy.texture, 
+                new Vector2i((State.resolution.X / 2f) - ((State.resolution.X / ar) / 2f), 0),
+                new Vector2i(State.resolution.X / ar, State.resolution.Y)
+            );
+        } else {
+            Draw2D.image(gameboy.texture, 
+                new Vector2i(0, (State.resolution.Y / 2f) - ((State.resolution.Y * ar) / 2f)),
+                new Vector2i(State.resolution.X, State.resolution.Y * ar)
+            );
+        }
+
+        
+        Interface.Render();
+        
+        // compose layers
+        State.graphics_device.SetRenderTarget(output_render_target.rt2D);
+        
+        Draw2D.image(game_render_target.rt2D, Vector2i.Zero, State.resolution);
+        Draw2D.image(Interface.render_target.rt2D, Vector2i.Zero, State.resolution);
+        
+        // draw output to screen
+        State.graphics_device.SetRenderTarget(null);
+        Draw2D.image(output_render_target.rt2D, Vector2i.Zero, State.resolution);
+        
+        //update framerate counter
+        Clock.FrameRateUpdate(gameTime.ElapsedGameTime.TotalMilliseconds);
+        
         base.Draw(gameTime);
+    }
+    
+    protected override void UnloadContent() {
+        State.Destroy();
+        base.UnloadContent();
     }
 }

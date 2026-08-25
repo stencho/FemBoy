@@ -32,18 +32,20 @@ public class GameBoy {
     public PPU PPU;
     public CPU CPU;
     public DMA DMA;
-
-    public Timer timer;
     
+    public Audio Audio;
+    
+    public Timer timer;
+    public Serial serial;
     public Joypad joypad;
     
     public GameBoy() {
         PPU = new PPU(this);
         CPU = new CPU(this);
         DMA = new DMA(this);
-        
+        Audio = new Audio(this);
         timer = new Timer(this);
-        
+        serial = new Serial(this);
         joypad = new Joypad(this);
         
         CPU.REGISTERS.A = 0x01;
@@ -102,118 +104,125 @@ public class GameBoy {
     public uint last_tima_read = 0;
     public uint last_tima_write = 0;
     public byte ReadByte(ushort address) {
-        if (address == 0xFF0F) return (byte)(CPU.REGISTERS.IF | 0xE0);
-        if (address == 0xFFFF) return (byte)(CPU.REGISTERS.IE | 0xE0);
         
-        if (address == (ushort)PPURegisterAddresses.LCDC) return PPU.LCDC;
+        // INTERRUPT REGISTERS
+        if (address == InterruptRegisterAddresses.IF) return (byte)(CPU.REGISTERS.IF | 0xE0);
+        if (address == InterruptRegisterAddresses.IE) return CPU.REGISTERS.IE;
         
-        if (address == (ushort)PPURegisterAddresses.LY) return PPU.LY;
-        if (address == (ushort)PPURegisterAddresses.LYC) return PPU.LYC;
+        // PPU REGISTERS
+        if (address == PPURegisterAddresses.LCDC) return PPU.LCDC;
         
-        if (address == (ushort)PPURegisterAddresses.SCY) return PPU.SCY;
-        if (address == (ushort)PPURegisterAddresses.SCX) return PPU.SCX;
+        if (address == PPURegisterAddresses.LY) return PPU.LY;
+        if (address == PPURegisterAddresses.LYC) return PPU.LYC;
         
-        if (address == (ushort)PPURegisterAddresses.STAT) return PPU.STAT;
+        if (address == PPURegisterAddresses.SCY) return PPU.SCY;
+        if (address == PPURegisterAddresses.SCX) return PPU.SCX;
         
-        if (address == (ushort)PPURegisterAddresses.BGP) return PPU.BGP;
-        if (address == (ushort)PPURegisterAddresses.OBP0) return PPU.OBP0;
-        if (address == (ushort)PPURegisterAddresses.OBP1) return PPU.OBP1;
-        if (address == (ushort)PPURegisterAddresses.WY) return PPU.WY;
-        if (address == (ushort)PPURegisterAddresses.WX) return PPU.WX;
+        if (address == PPURegisterAddresses.STAT) return PPU.STAT;
+        
+        if (address == PPURegisterAddresses.BGP) return PPU.BGP;
+        if (address == PPURegisterAddresses.OBP0) return PPU.OBP0;
+        if (address == PPURegisterAddresses.OBP1) return PPU.OBP1;
+        if (address == PPURegisterAddresses.WY) return PPU.WY;
+        if (address == PPURegisterAddresses.WX) return PPU.WX;
 
-        if (address == (ushort)TimerRegisterAddresses.DIV) return timer.DIV;
-        if (address == (ushort)TimerRegisterAddresses.TIMA) return timer.TIMA;
-        if (address == (ushort)TimerRegisterAddresses.TMA) return timer.TMA;
-        if (address == (ushort)TimerRegisterAddresses.TAC) return (byte)(timer.TAC | 0xF8);
+        // TIMER REGISTERS
+        if (address == TimerRegisterAddresses.DIV) return timer.DIV;
+        if (address == TimerRegisterAddresses.TIMA) return timer.TIMA;
+        if (address == TimerRegisterAddresses.TMA) return timer.TMA;
+        if (address == TimerRegisterAddresses.TAC) return (byte)(timer.TAC | 0xF8);
         
-        if (address == 0xFF00) return joypad.ReadState();
+        // JOYPAD REGISTER
+        if (address == Joypad.RegisterAddress) return joypad.ReadState();
         
-        if (address < 0x8000) {
+        // SERIAL REGISTERS
+        if (address == SerialRegisterAddresses.SB) return serial.SB;
+        if (address == SerialRegisterAddresses.SC) return serial.SC;
+        
+        
+        // AUDIO REGISTERS AND UNMAPPED REGIONS
+        // CHANNEL 1
+        
+        if (address == AudioRegisterAddresses.NR10) return Audio.NR10;
+        if (address == AudioRegisterAddresses.NR11) return Audio.NR11;
+        if (address == AudioRegisterAddresses.NR12) return Audio.NR12;
+        if (address == AudioRegisterAddresses.NR13) return Audio.NR13;
+        if (address == AudioRegisterAddresses.NR14) return Audio.NR14;
+        
+        if (address == AudioRegisterAddresses.NR21) return Audio.NR21;
+        if (address == AudioRegisterAddresses.NR22) return Audio.NR22;
+        if (address == AudioRegisterAddresses.NR23) return Audio.NR23;
+        if (address == AudioRegisterAddresses.NR24) return Audio.NR24;
+        
+        if (address == AudioRegisterAddresses.NR30) return Audio.NR30;
+        if (address == AudioRegisterAddresses.NR31) return Audio.NR31;
+        if (address == AudioRegisterAddresses.NR32) return Audio.NR32;
+        if (address == AudioRegisterAddresses.NR33) return Audio.NR33;
+        if (address == AudioRegisterAddresses.NR34) return Audio.NR34;
+        
+        if (address == AudioRegisterAddresses.NR41) return Audio.NR41;
+        if (address == AudioRegisterAddresses.NR42) return Audio.NR42;
+        if (address == AudioRegisterAddresses.NR43) return Audio.NR43;
+        if (address == AudioRegisterAddresses.NR44) return Audio.NR44;
+        
+        if (address == AudioRegisterAddresses.NR50) return Audio.NR50;
+        if (address == AudioRegisterAddresses.NR51) return Audio.NR51;
+        if (address == AudioRegisterAddresses.NR52) return Audio.NR52;
+        
+        // Unmapped APU area bits
+        if (address == 0xFF03 || address is >= 0xFF08 and <= 0xFF0E || address == 0xFF15 || address == 0xFF1F || address is >= 0xFF27 and <= 0xFF2F || address is >= 0xFF4C and <= 0xFF7F) { return 0xFF; }
+        
+        // CARTRIDGE
+        if (address < 0x8000 || (address >= 0xA000 && address < 0xC000)) {
             return cartridge.Read(address);
         }
         
-        if (address >= 0x8000 && address <= 0x9FFF) 
-            if (PPU.Mode == PPU.STATMode.LCD_TRANSFER) 
-                return 0xFF;
-        
+        // VRAM - RETURN 0xFF WHEN READ AND PPU IS IN LCD_TRANSFER MODE
+        if (address is >= 0x8000 and <= 0x9FFF) {
+            if (PPU.Mode == PPU.STATMode.LCD_TRANSFER) return 0xFF;
+        }
+
+        // ECHO RAM
         if (address >= 0xE000 && address <= 0xFDFF) return RAM[address - 0x2000];
 
         if (address == (ushort)PPURegisterAddresses.DMA) {
             return DMA.Register;
         }
         
-        if (address == 0xFF85)
-            Console.WriteLine(
-                $"HRAM READ FF85={RAM[address]:X2} " +
-                $"PC={CPU.REGISTERS.PC:X4} " +
-                $"T={TotalCycles}");
         return RAM[address];
     }
     
     public void WriteByte(ushort address, byte value) {
-        if (address == 0xFF0F) {
-            CPU.REGISTERS.IF = (byte)(value & 0x1F);
-            return;
-        }
-        if (address == 0xFFFF) {
-            CPU.REGISTERS.IE = (byte)(value & 0x1F);
-            return;
-        }
+        // INTERRUPT REGISTER
+        if (address == InterruptRegisterAddresses.IF) { CPU.REGISTERS.IF = (byte)(value & 0x1F); return; }
+        if (address == InterruptRegisterAddresses.IE) { CPU.REGISTERS.IE = value; return; }
 
-        if (address == (ushort)PPURegisterAddresses.LCDC) {
-            PPU.LCDC = value;
-            return;
-        }
+        // PPU REGISTERS
+        if (address == PPURegisterAddresses.LCDC) { PPU.LCDC = value; return; }
+        if (address == PPURegisterAddresses.STAT) { PPU.STAT = value; return; }
         
-        if (address == (ushort)PPURegisterAddresses.LY) {
-            PPU.LY = 0x00;
-            return;
-        }
-        if (address == (ushort)PPURegisterAddresses.LYC) {
-            PPU.LYC = value;
-            return;
-        }
-        
-        if (address == (ushort)PPURegisterAddresses.SCY) {
-            PPU.SCY = value;
-            return;
-        }
-        if (address == (ushort)PPURegisterAddresses.SCX) {
-            PPU.SCX = value;
-            return;
-        }
-        
-        if (address == (ushort)PPURegisterAddresses.BGP) {
-            PPU.BGP = value;
-            return;
-        }
-        if (address == (ushort)PPURegisterAddresses.OBP0) {
-            PPU.OBP0 = value;
-            return;
-        }
-        if (address == (ushort)PPURegisterAddresses.OBP1) {
-            PPU.OBP1 = value;
-            return;
-        }
-        if (address == (ushort)PPURegisterAddresses.WY) {
-            PPU.WY = value;
-            return;
-        }
-        if (address == (ushort)PPURegisterAddresses.WX) {
-            PPU.WX = value;
-            return;
-        }
-        
-        if (address == (ushort)TimerRegisterAddresses.DIV) {
-            timer.ResetDivider();
-            return;
-        }
+        if (address == PPURegisterAddresses.SCY) { PPU.SCY = value; return; }
+        if (address == PPURegisterAddresses.SCX) { PPU.SCX = value; return; }
 
-        if (address == (ushort)TimerRegisterAddresses.TIMA) { 
-            Console.WriteLine(
-                $"TIMA WRITE: " +
-                $"T={TotalCycles} DELTA={TotalCycles - last_tima_write} " +
-                $"value={value:X2}");
+        if (address == PPURegisterAddresses.LY) { PPU.LY = 0x00; return; }
+        if (address == PPURegisterAddresses.LYC) { PPU.LYC = value; return; }
+        
+        if (address == PPURegisterAddresses.BGP) { PPU.BGP = value; return; }
+        if (address == PPURegisterAddresses.OBP0) { PPU.OBP0 = value; return; }
+        if (address == PPURegisterAddresses.OBP1) { PPU.OBP1 = value; return; }
+        if (address == PPURegisterAddresses.WY) { PPU.WY = value; return; }
+        if (address == PPURegisterAddresses.WX) { PPU.WX = value; return; }
+        
+        if (address == PPURegisterAddresses.DMA) {
+            DMA.Register = value;
+            DMA.Start(value);
+            return;
+        }
+        
+        // TIMER REGISTERS
+        if (address == TimerRegisterAddresses.DIV) { timer.ResetDivider(); return; }
+
+        if (address == TimerRegisterAddresses.TIMA) { 
             last_tima_write = TotalCycles;
             if (timer.ReloadPending) {
                 if (timer.ReloadDelay > 0) {
@@ -228,49 +237,65 @@ public class GameBoy {
             return;
         }
         
-        if (address == (ushort)TimerRegisterAddresses.TMA) {
+        if (address == TimerRegisterAddresses.TMA) {
             timer.TMA = value;
             if (timer.ReloadPending && (timer.ReloadDelay == 0 || timer.ReloadDelay == 1)) timer.TIMA = value;
             return;
         }
         
-        if (address == (ushort)TimerRegisterAddresses.TAC) {
-            timer.WriteTAC(value);
-            return;
-        }
+        if (address == TimerRegisterAddresses.TAC) { timer.WriteTAC(value); return; }
         
-        if (address == (ushort)PPURegisterAddresses.DMA) {
-            DMA.Register = value;
-            Console.WriteLine(
-                $"DMA START {address:X4} = {value:X2} " +
-                $"T={TotalCycles} active={DMA.Active}"
-            );
-            DMA.Start(value);
-            return;
-        }
-        
-        if (address == (ushort)PPURegisterAddresses.STAT) {
-            PPU.STAT = value;
-            return;
-        }
-        
-        // INPUT HANDLING
-        if (address == 0xFF00) {
+        // JOYPAD REGISTER
+        if (address == Joypad.RegisterAddress) {
             joypad.select_dpad = ((value & 0x10) == 0);
             joypad.select_buttons = ((value & 0x20) == 0);
             return;
         }
         
-        if (address < 0x8000 || (address >= 0xA000 && address < 0xC000)) {
-            cartridge.Write(address, value);
-            return;
-        }
+        // SERIAL REGISTERS 
+        if (address == SerialRegisterAddresses.SB) { serial.SB = value; return; }
+        if (address == SerialRegisterAddresses.SC) { serial.SC = value; return; }
+        
+        // AUDIO REGISTERS
+
+        // CHANNEL 1
+        if (address == AudioRegisterAddresses.NR10) { Audio.NR10 = value; return; }
+        if (address == AudioRegisterAddresses.NR11) { Audio.NR11 = value; return; }
+        if (address == AudioRegisterAddresses.NR12) { Audio.NR12 = value; return; }
+        if (address == AudioRegisterAddresses.NR13) { Audio.NR13 = value; return; }
+        if (address == AudioRegisterAddresses.NR14) { Audio.NR14 = value; return; }
+        
+        if (address == AudioRegisterAddresses.NR21) { Audio.NR21 = value; return; }
+        if (address == AudioRegisterAddresses.NR22) { Audio.NR22 = value; return; }
+        if (address == AudioRegisterAddresses.NR23) { Audio.NR23 = value; return; }
+        if (address == AudioRegisterAddresses.NR24) { Audio.NR24 = value; return; }
+        
+        if (address == AudioRegisterAddresses.NR30) { Audio.NR30 = value; return; }
+        if (address == AudioRegisterAddresses.NR31) { Audio.NR31 = value; return; }
+        if (address == AudioRegisterAddresses.NR32) { Audio.NR32 = value; return; }
+        if (address == AudioRegisterAddresses.NR33) { Audio.NR33 = value; return; }
+        if (address == AudioRegisterAddresses.NR34) { Audio.NR34 = value; return; }
+        
+        if (address == AudioRegisterAddresses.NR41) { Audio.NR41 = value; return; }
+        if (address == AudioRegisterAddresses.NR42) { Audio.NR42 = value; return; }
+        if (address == AudioRegisterAddresses.NR43) { Audio.NR43 = value; return; }
+        if (address == AudioRegisterAddresses.NR44) { Audio.NR44 = value; return; }
+        
+        if (address == AudioRegisterAddresses.NR50) { Audio.NR50 = value; return; }
+        if (address == AudioRegisterAddresses.NR51) { Audio.NR51 = value; return; }
+        if (address == AudioRegisterAddresses.NR52) { Audio.NR52 = value; return; }
+
+        // Unmapped APU area bits
+        if (address == 0xFF03 || address is >= 0xFF08 and <= 0xFF0E || address == 0xFF15 || address == 0xFF1F || address is >= 0xFF27 and <= 0xFF2F || address is >= 0xFF4C and <= 0xFF7F) { return; }
+        
+        // CARTRIDGE
+        if (address < 0x8000 || (address >= 0xA000 && address < 0xC000)) { cartridge.Write(address, value); return; }
+        
+        // ECHO RAM
+        if (address >= 0xE000 && address <= 0xFDFF) { RAM[address - 0x2000] = value; return; }
         
         RAM[address] = value;
     }
-    
-    public byte ReadByte(PPURegisterAddresses address) => ReadByte((ushort)address);
-    public void WriteByte(PPURegisterAddresses address, byte value) => WriteByte((ushort)address, value);
     
     public byte ReadVRAM(ushort address) {
         if (address < 0x8000 || address > 0x9FFF) 
@@ -287,10 +312,6 @@ public class GameBoy {
     }
     
     public void RequestInterrupt(CPU.InterruptMask interrupt) {
-        Console.WriteLine(
-            $"IRQ REQUEST {interrupt} " +
-            $"PC={CPU.REGISTERS.PC:X4} " +
-            $"T={TotalCycles}");
         CPU.REGISTERS.IF |= (byte)interrupt;
     }
     
@@ -304,9 +325,11 @@ public class GameBoy {
     public void Tick(int cycles) {
         for (int i = 0; i < cycles; i++) {
             TotalCycles++;
+            
             timer.Execute();
             PPU.Execute();   
             DMA.Execute();
+            serial.Execute();
         }
         CyclesThisFrame += cycles;
     }

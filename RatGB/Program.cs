@@ -1,2 +1,2 @@
-﻿using var game = new RatGB.Game1();
+﻿using var game = new RatGB.RatGBGame();
 game.Run();

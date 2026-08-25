@@ -1,10 +1,10 @@
 namespace RatGBLib;
 
-public enum TimerRegisterAddresses : ushort {
-    DIV = 0xFF04,
-    TIMA = 0xFF05,
-    TMA = 0xFF06,
-    TAC = 0xFF07
+public static class TimerRegisterAddresses {
+    public const ushort DIV = 0xFF04;
+    public const ushort TIMA = 0xFF05;
+    public const ushort TMA = 0xFF06;
+    public const ushort TAC = 0xFF07;
 }
 
 public class Timer {
@@ -56,8 +56,6 @@ public class Timer {
     public uint last_tima_increment = 0;
     
     void IncrementTIMA() {
-        //Console.WriteLine($"TIMA PERIOD = {gameboy.TotalCycles - last_tima_increment}");
-        
         if (TIMA_reload_pending) {
             if (TIMA_reload_delay > 0) {
                 TIMA_reload_pending = false;

@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace RatGBLib;
 
 public enum JoypadButtons {
@@ -6,6 +8,8 @@ public enum JoypadButtons {
 }
 
 public class Joypad {
+    public const ushort RegisterAddress = 0xFF00;
+    
     private GameBoy gameboy;
 
     public Joypad(GameBoy gameboy) => this.gameboy = gameboy;
@@ -28,18 +32,21 @@ public class Joypad {
         byte result = 0xCF;
         
         if (select_dpad) {
+            result &= 0xEF;
+            
             if (button_states[JoypadButtons.Right])  result &= 0xFE;
             if (button_states[JoypadButtons.Left])   result &= 0xFD;
             if (button_states[JoypadButtons.Up])     result &= 0xFB;
             if (button_states[JoypadButtons.Down])   result &= 0xF7;
-        }
-        
+        } 
         if (select_buttons) {
+            result &= 0xDF;
+            
             if (button_states[JoypadButtons.A])      result &= 0xFE;
             if (button_states[JoypadButtons.B])      result &= 0xFD;
             if (button_states[JoypadButtons.Select]) result &= 0xFB;
             if (button_states[JoypadButtons.Start])  result &= 0xF7;
-        }
+        } 
         
         return result;
     }

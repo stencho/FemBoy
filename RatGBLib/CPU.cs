@@ -1,7 +1,13 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 
 namespace RatGBLib;
 using static GameBoy;
+
+public static class InterruptRegisterAddresses {
+    public const ushort IF = 0xFF0F;
+    public const ushort IE = 0xFFFF;
+}
 
 public class CPU {
     public GBRegisters REGISTERS = new GBRegisters();
@@ -201,7 +207,7 @@ public class CPU {
     
     public void PushU16(ref ushort SP, ushort value) {
         gameboy.Tick(4);
-
+/*
         ushort hi_addr = (ushort)(SP - 1);
         WriteByte(hi_addr, (byte)(value >> 8));
         
@@ -209,6 +215,13 @@ public class CPU {
         WriteByte(lo_addr, (byte)value);
 
         SP -= 2;
+*/
+        SP--;
+        WriteByte(SP, (byte)(value >> 8));
+
+        SP--;
+        WriteByte(SP, (byte)value);
+        
     }
     
     public ushort PopU16(ref ushort SP) {
@@ -252,6 +265,12 @@ public class CPU {
         return (ushort)((hi << 8) | lo);
     }
     
+    public ushort ReadU16NoTick(ushort address) {
+        byte lo = gameboy.ReadByte(address);
+        byte hi = gameboy.ReadByte((ushort)(address+1));
+        return (ushort)((hi << 8) | lo);
+    }
+    
     private byte FetchOpcode() {
         byte op = ReadByte(REGISTERS.PC);
 
@@ -267,10 +286,7 @@ public class CPU {
     public CPU(GameBoy gameboy) => this.gameboy = gameboy;
     
     private void ServiceInterrupt() {
-        Console.WriteLine(
-            $"IRQ SERVICE T={gameboy.TotalCycles} " +
-            $"IME={INTERRUPT_MASTER_ENABLE} IE={gameboy.ReadByte(0xFFFF):X2} " +
-            $"IF={gameboy.ReadByte(0xFF0F):X2}");
+        INTERRUPT_MASTER_ENABLE = false;
         
         InterruptMask interrupt;
 
@@ -280,10 +296,6 @@ public class CPU {
         else if (InterruptEnabled(InterruptMask.Serial) && InterruptRequested(InterruptMask.Serial)) interrupt = InterruptMask.Serial;
         else if (InterruptEnabled(InterruptMask.Joypad) && InterruptRequested(InterruptMask.Joypad)) interrupt = InterruptMask.Joypad;
         else return;
-        
-        Console.WriteLine(
-            $"SERVICING {interrupt} " +
-            $"T={gameboy.TotalCycles} PC={REGISTERS.PC:X4} SP={REGISTERS.SP:X4}");
         
         Tick(4);
     
@@ -308,6 +320,10 @@ public class CPU {
     
         Tick(4);
     }
+
+    public ConcurrentQueue<OpcodeInfo> LastNOpcodes = new();
+    private int track_n_opcodes = 40;
+    public bool track_opcodes = false;
     
     public void Execute() {
         if (STOPPED) Tick(4);
@@ -330,24 +346,34 @@ public class CPU {
         
         if (ENABLE_INTERRUPT_DELAY > 0) {
             ENABLE_INTERRUPT_DELAY--;
-
-            if (ENABLE_INTERRUPT_DELAY == 0) {
-                INTERRUPT_MASTER_ENABLE = true;
-                ENABLE_INTERRUPT_DELAY = -1;
-            }
+            if (ENABLE_INTERRUPT_DELAY == 0) INTERRUPT_MASTER_ENABLE = true;
         }
-        
+
+        ushort current_PC = REGISTERS.PC;
         byte opcode = FetchOpcode();
         
+        OpcodeInfo current_op = new OpcodeInfo(opcode);
+        
+        current_op.PC = current_PC;
+        current_op.SP_before = REGISTERS.SP;
+
+        if (track_opcodes) {
+            LastNOpcodes.Enqueue(current_op);
+            if (LastNOpcodes.Count > track_n_opcodes) LastNOpcodes.TryDequeue(out _);
+        }
+
         switch (opcode) {
             // -------- 0x0x --------
             
             case 0x00: break; // NOP
-            
-            case 0x01: // LD BC, ushort
-                REGISTERS.BC = ReadU16(ref REGISTERS.PC);
+
+            case 0x01: { // LD BC, ushort
+                ushort value = ReadU16(ref REGISTERS.PC);
+                REGISTERS.BC = value;
+                current_op.operand_one = (byte)value;
+                current_op.operand_two = (byte)(value >> 8);
                 break;
-            
+            }
             case 0x02: // LD (BC), A
                 WriteByte(REGISTERS.BC, REGISTERS.A);
                 break;
@@ -367,6 +393,7 @@ public class CPU {
             
             case 0x06: // LD B, (byte)
                 REGISTERS.B = ReadByte(REGISTERS.PC++);
+                current_op.operand_one = REGISTERS.B;
                 break;
 
             case 0x07: { // RLCA 
@@ -384,6 +411,9 @@ public class CPU {
                 ushort value = ReadU16(ref REGISTERS.PC);
                 WriteByte(value, (byte)REGISTERS.SP);
                 WriteByte((ushort)(value + 1), (byte)(REGISTERS.SP >> 8));
+                
+                current_op.operand_one = (byte)value;
+                current_op.operand_two = (byte)(value >> 8);
                 break;
             }
 
@@ -411,6 +441,7 @@ public class CPU {
             
             case 0x0E: // LD C, byte
                 REGISTERS.C = ReadByte(REGISTERS.PC++);
+                current_op.operand_one = REGISTERS.C;
                 break;
             
             case 0x0F: { // RRCA 
@@ -431,11 +462,15 @@ public class CPU {
                 REGISTERS.PC++;
                 STOPPED = true;
                 break;
-            
-            case 0x11: // LD DE, ushort
-                REGISTERS.DE = ReadU16(ref REGISTERS.PC);
+
+            case 0x11: { // LD DE, ushort
+                ushort value = ReadU16(ref REGISTERS.PC);
+                REGISTERS.DE = value;
+                current_op.operand_one = (byte)value;
+                current_op.operand_two = (byte)(value >> 8);
                 break;
-            
+            }
+
             case 0x12: // LD (DE), A
                 WriteByte(REGISTERS.DE, REGISTERS.A);
                 break;
@@ -455,6 +490,7 @@ public class CPU {
             
             case 0x16: // LD D, byte
                 REGISTERS.D = ReadByte(REGISTERS.PC++);
+                current_op.operand_one = REGISTERS.D;
                 break;
             
             case 0x17: { // RLA 
@@ -471,6 +507,7 @@ public class CPU {
 
             case 0x18: { // JR byte
                 sbyte offset = unchecked((sbyte)ReadByte(REGISTERS.PC++));
+                current_op.operand_one = (byte)offset;
                 REGISTERS.PC = (ushort)(REGISTERS.PC + offset);
                 Tick(4);
                 break;
@@ -500,6 +537,7 @@ public class CPU {
             
             case 0x1E: // LD E, byte
                 REGISTERS.E = ReadByte(REGISTERS.PC++);
+                current_op.operand_one = REGISTERS.E;
                 break;
             
             case 0x1F: { // RRA 
@@ -520,7 +558,9 @@ public class CPU {
             
             case 0x20: { // JR NZ, byte
                 sbyte offset = unchecked((sbyte)ReadByte(REGISTERS.PC++));
-
+                
+                current_op.operand_one = (byte)offset;
+                
                 if (!REGISTERS.GetFlag(GBRegisters.Mask.Zero)) {
                     REGISTERS.PC = (ushort)(REGISTERS.PC + offset);
                     Tick(4);
@@ -529,9 +569,14 @@ public class CPU {
                 break;
             }
 
-            case 0x21: // LD HL, ushort
-                REGISTERS.HL = ReadU16(ref REGISTERS.PC);
+            case 0x21: { // LD HL, ushort
+                ushort value = ReadU16(ref REGISTERS.PC);
+                REGISTERS.HL = value;
+                
+                current_op.operand_one = (byte)value;
+                current_op.operand_two = (byte)(value >> 8);
                 break;
+                }
             
             case 0x22: // LD (HL+), A
                 WriteByte(REGISTERS.HL++, REGISTERS.A);
@@ -552,6 +597,7 @@ public class CPU {
             
             case 0x26: // LD H, byte
                 REGISTERS.H = ReadByte(REGISTERS.PC++);
+                current_op.operand_one = REGISTERS.H;
                 break;
 
             case 0x27: { // DAA
@@ -584,7 +630,8 @@ public class CPU {
             
             case 0x28: { // JR Z, byte
                 sbyte offset = unchecked((sbyte)ReadByte(REGISTERS.PC++));
-
+                current_op.operand_one = (byte)offset;
+                
                 if (REGISTERS.GetFlag(GBRegisters.Mask.Zero)) {
                     REGISTERS.PC = (ushort)(REGISTERS.PC + offset);
                     Tick(4);
@@ -617,6 +664,7 @@ public class CPU {
             
             case 0x2E: // LD L, byte
                 REGISTERS.L = ReadByte(REGISTERS.PC++);
+                current_op.operand_one = REGISTERS.E;
                 break;
             
             case 0x2F: // CPL
@@ -629,7 +677,8 @@ public class CPU {
             
             case 0x30: { // JR NC, byte
                 sbyte offset = unchecked((sbyte)ReadByte(REGISTERS.PC++));
-
+                current_op.operand_one = (byte)offset;
+                
                 if (!REGISTERS.GetFlag(GBRegisters.Mask.Carry)) {
                     REGISTERS.PC = (ushort)(REGISTERS.PC + offset);
                     Tick(4);
@@ -638,9 +687,13 @@ public class CPU {
                 break;
             }
             
-            case 0x31: // LD SP, ushort
-                REGISTERS.SP = ReadU16(ref REGISTERS.PC);
+            case 0x31: { // LD SP, ushort
+                ushort value = ReadU16(ref REGISTERS.PC);
+                REGISTERS.SP = value;
+                current_op.operand_one = (byte)value;
+                current_op.operand_two = (byte)(value >> 8);
                 break;
+                }
             
             case 0x32: // LD (HL-), A
                 WriteByte(REGISTERS.HL--, REGISTERS.A);
@@ -659,10 +712,13 @@ public class CPU {
                 DecrementAtAddress(gameboy, REGISTERS.HL);
                 break;
             
-            case 0x36: // LD (HL), byte
-                WriteByte(REGISTERS.HL, ReadByte(REGISTERS.PC++));
+            case 0x36: { // LD (HL), byte
+                byte value = ReadByte(REGISTERS.PC++); 
+                current_op.operand_one = value;
+                WriteByte(REGISTERS.HL, value);
                 break;
-            
+            }
+                
             case 0x37: // SCF
                 REGISTERS.SetFlag(GBRegisters.Mask.Negative, false);
                 REGISTERS.SetFlag(GBRegisters.Mask.HalfCarry, false);
@@ -671,7 +727,7 @@ public class CPU {
             
             case 0x38: { // JR C, byte
                 sbyte offset = unchecked((sbyte)ReadByte(REGISTERS.PC++));
-
+                current_op.operand_one = (byte)offset;
                 if (REGISTERS.GetFlag(GBRegisters.Mask.Carry)) {
                     REGISTERS.PC = (ushort)(REGISTERS.PC + offset);
                     Tick(4);
@@ -704,6 +760,7 @@ public class CPU {
             
             case 0x3E: // LD A, byte
                 REGISTERS.A = ReadByte(REGISTERS.PC++);
+                current_op.operand_one = REGISTERS.E;
                 break;
             
             case 0x3F: // CCF
@@ -888,23 +945,35 @@ public class CPU {
             // -------- 0xCx --------
 
             case 0xC0: // RET NZ
-                if (!REGISTERS.GetFlag(GBRegisters.Mask.Zero)) {
-                    REGISTERS.PC = PopU16(ref REGISTERS.SP);
-                    Tick(4);
-                }
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
                 
+                if (!REGISTERS.GetFlag(GBRegisters.Mask.Zero)) {
+                    ushort value = PopU16(ref REGISTERS.SP);
+                    REGISTERS.PC = value;
+                    Tick(4);
+                    current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
+                }
                 Tick(4);
+                current_op.SP_after = REGISTERS.SP;
                 break;
             
             case 0xC1: { // POP BC
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
+                
                 ushort value = PopU16(ref REGISTERS.SP);
                 REGISTERS.BC = value;
+                
+                current_op.SP_after = REGISTERS.SP;
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 break;
             }
             
             case 0xC2: { // JP NZ, ushort
                 ushort address = ReadU16(ref REGISTERS.PC);
                 
+                current_op.operand_one = (byte)address;
+                current_op.operand_two = (byte)(address >> 8);
+                
                 if (!REGISTERS.GetFlag(GBRegisters.Mask.Zero)) {
                     REGISTERS.PC = address;
                     Tick(4);
@@ -913,30 +982,49 @@ public class CPU {
                 break;
             }
             
-            case 0xC3: // JP ushort
-                REGISTERS.PC = ReadU16(ref REGISTERS.PC);
+            case 0xC3: { // JP ushort
+                ushort value = ReadU16(ref REGISTERS.PC);
+                REGISTERS.PC = value;
+                current_op.operand_one = (byte)(value >> 8);
+                current_op.operand_two = (byte)value;
                 Tick(4);
                 break;
+            }
             
             case 0xC4: { // CALL NZ, ushort
                 ushort address = ReadU16(ref REGISTERS.PC);
                 
+                current_op.operand_one = (byte)address;
+                current_op.operand_two = (byte)(address >> 8);
+                
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
+                
                 if (!REGISTERS.GetFlag(GBRegisters.Mask.Zero)) {
                     PushU16(ref REGISTERS.SP, REGISTERS.PC);
                     REGISTERS.PC = address;
+                    current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 }
-
+                
+                current_op.SP_after = REGISTERS.SP;
                 break;
             }
             
             case 0xC5: // PUSH BC
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
+                
                 PushU16( ref REGISTERS.SP, REGISTERS.BC);
                 Tick(4);
+                
+                current_op.SP_after = REGISTERS.SP;
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 break;
             
-            case 0xC6: // ADD A, byte
-                Add(ref REGISTERS.A, ReadByte(REGISTERS.PC++));
+            case 0xC6: { // ADD A, byte
+                byte value = ReadByte(REGISTERS.PC++);
+                current_op.operand_one = value;
+                Add(ref REGISTERS.A, value);
                 break;
+                }
             
             case 0xC7: // RST 00h
                 PushU16( ref REGISTERS.SP, REGISTERS.PC);
@@ -944,21 +1032,30 @@ public class CPU {
                 break;
             
             case 0xC8: // RET Z
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
                 if (REGISTERS.GetFlag(GBRegisters.Mask.Zero)) {
                     REGISTERS.PC = PopU16(ref REGISTERS.SP);
                     Tick(4);
+                    current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 }
                 
                 Tick(4);
+                current_op.SP_after = REGISTERS.SP;
                 break;
             
             case 0xC9: // RET
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
                 REGISTERS.PC = PopU16(ref REGISTERS.SP);
                 Tick(4);
+                current_op.SP_after = REGISTERS.SP;
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 break;
             
             case 0xCA: { // JP Z, ushort
                 ushort address = ReadU16(ref REGISTERS.PC);
+                
+                current_op.operand_one = (byte)address;
+                current_op.operand_two = (byte)(address >> 8);
                 
                 if (REGISTERS.GetFlag(GBRegisters.Mask.Zero)) {
                     REGISTERS.PC = address;
@@ -976,24 +1073,42 @@ public class CPU {
             case 0xCC: { // CALL Z, ushort
                 ushort address = ReadU16(ref REGISTERS.PC);
                 
+                current_op.operand_one = (byte)address;
+                current_op.operand_two = (byte)(address >> 8);
+                
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
+                
                 if (REGISTERS.GetFlag(GBRegisters.Mask.Zero)) {
                     PushU16( ref REGISTERS.SP, REGISTERS.PC);
                     REGISTERS.PC = address;
+                    current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 }
-
+                
+                current_op.SP_after = REGISTERS.SP;
                 break;
             }
             
             case 0xCD: { // CALL ushort
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
                 ushort address = ReadU16(ref REGISTERS.PC);
+                
+                current_op.operand_one = (byte)address;
+                current_op.operand_two = (byte)(address >> 8);
+                
                 PushU16( ref REGISTERS.SP, REGISTERS.PC);
                 REGISTERS.PC = address;
+                
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
+                current_op.SP_after = REGISTERS.SP;
                 break;
             }
             
-            case 0xCE: // ADC A, byte
-                AddWithCarry(ref REGISTERS.A, ReadByte(REGISTERS.PC++));
+            case 0xCE: { // ADC A, byte
+                byte value = ReadByte(REGISTERS.PC++);
+                current_op.operand_one = value;
+                AddWithCarry(ref REGISTERS.A, value);
                 break;
+            }
 
             case 0xCF: // RST 08h
                 PushU16( ref REGISTERS.SP, REGISTERS.PC);
@@ -1003,23 +1118,34 @@ public class CPU {
             // -------- 0xDx --------
             
             case 0xD0: { // RET NC
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
                 if (!REGISTERS.GetFlag(GBRegisters.Mask.Carry)) {
                     REGISTERS.PC = PopU16(ref REGISTERS.SP);
                     Tick(4);
+                    current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 }
                 
                 Tick(4);
+                current_op.SP_after = REGISTERS.SP;
                 break;
             }
             
             case 0xD1: { // POP DE
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
+                
                 ushort value = PopU16(ref REGISTERS.SP);
                 REGISTERS.DE = value;
+                
+                current_op.SP_after = REGISTERS.SP;
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 break;
             }
             
             case 0xD2: { // JP NC, ushort
                 ushort address = ReadU16(ref REGISTERS.PC);
+                
+                current_op.operand_one = (byte)address;
+                current_op.operand_two = (byte)(address >> 8);
                 
                 if (!REGISTERS.GetFlag(GBRegisters.Mask.Carry)) {
                     REGISTERS.PC = address;
@@ -1033,22 +1159,38 @@ public class CPU {
             
             case 0xD4: { // CALL NC, ushort
                 ushort address = ReadU16(ref REGISTERS.PC);
+                
+                current_op.operand_one = (byte)address;
+                current_op.operand_two = (byte)(address >> 8);
+                
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
+                
                 if (!REGISTERS.GetFlag(GBRegisters.Mask.Carry)) {
                     PushU16( ref REGISTERS.SP, REGISTERS.PC);
                     REGISTERS.PC = address;
+                    current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 }
 
+                current_op.SP_after = REGISTERS.SP;
                 break;
             }
             
             case 0xD5: // PUSH DE
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
+                
                 PushU16( ref REGISTERS.SP, REGISTERS.DE);
                 Tick(4);
+                
+                current_op.SP_after = REGISTERS.SP;
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 break;
             
-            case 0xD6: // SUB A, byte
-                Subtract(ref REGISTERS.A, ReadByte(REGISTERS.PC++));
+            case 0xD6: { // SUB A, byte
+                byte value = ReadByte(REGISTERS.PC++);
+                current_op.operand_one = value;
+                Subtract(ref REGISTERS.A, value);
                 break;
+                }
             
             case 0xD7: // RST 10h
                 PushU16( ref REGISTERS.SP, REGISTERS.PC);
@@ -1056,22 +1198,35 @@ public class CPU {
                 break;
             
             case 0xD8: // RET C
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
+                
                 if (REGISTERS.GetFlag(GBRegisters.Mask.Carry)) {
                     REGISTERS.PC = PopU16(ref REGISTERS.SP);
                     Tick(4);
+                    current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 }
                 
                 Tick(4);
+                current_op.SP_after = REGISTERS.SP;
                 break;
             
             case 0xD9: // RETI
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
+                
                 REGISTERS.PC = PopU16(ref REGISTERS.SP);
                 INTERRUPT_MASTER_ENABLE = true;
+                ENABLE_INTERRUPT_DELAY = 0;
                 Tick(4);
+                
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
+                current_op.SP_after = REGISTERS.SP;
                 break;
             
             case 0xDA: { // JP C, ushort
                 ushort address = ReadU16(ref REGISTERS.PC);
+                
+                current_op.operand_one = (byte)address;
+                current_op.operand_two = (byte)(address >> 8);
                 
                 if (REGISTERS.GetFlag(GBRegisters.Mask.Carry)) {
                     REGISTERS.PC = address;
@@ -1086,19 +1241,29 @@ public class CPU {
             case 0xDC: { // CALL C, ushort
                 ushort address = ReadU16(ref REGISTERS.PC);
                 
+                current_op.operand_one = (byte)address;
+                current_op.operand_two = (byte)(address >> 8);
+                
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
+                
                 if (REGISTERS.GetFlag(GBRegisters.Mask.Carry)) {
                     PushU16( ref REGISTERS.SP, REGISTERS.PC);
                     REGISTERS.PC = address;
+                    current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 }
-
+                
+                current_op.SP_after = REGISTERS.SP;
                 break;
             }
             
             // 0xDD UNUSED
             
-            case 0xDE: // SBC A, byte
-                SubtractWithCarry(ref REGISTERS.A, ReadByte(REGISTERS.PC++));
+            case 0xDE: { // SBC A, byte
+                byte value = ReadByte(REGISTERS.PC++);
+                current_op.operand_one = value;
+                SubtractWithCarry(ref REGISTERS.A, value);
                 break;
+            }
             
             case 0xDF: // RST 18h
                 PushU16( ref REGISTERS.SP, REGISTERS.PC);
@@ -1109,13 +1274,19 @@ public class CPU {
 
             case 0xE0: { // LD (FF00 + byte), A
                 byte offset = ReadByte(REGISTERS.PC++);
+                current_op.operand_one = offset;
                 WriteByte((ushort)(0xFF00 + offset), REGISTERS.A);
                 break;
             }
 
             case 0xE1: { // POP HL
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
+                
                 ushort value = PopU16(ref REGISTERS.SP);
                 REGISTERS.HL = value;
+                
+                current_op.SP_after = REGISTERS.SP;
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 break;
             }
             
@@ -1129,13 +1300,21 @@ public class CPU {
             // 0xE4 UNUSED
             
             case 0xE5: // PUSH HL
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
+                
                 PushU16( ref REGISTERS.SP, REGISTERS.HL);
                 Tick(4);
+                
+                current_op.SP_after = REGISTERS.SP;
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 break;
             
-            case 0xE6: // AND A, byte
-                And(ref REGISTERS.A, ReadByte(REGISTERS.PC++));
+            case 0xE6: { // AND A, byte
+                byte value = ReadByte(REGISTERS.PC++);
+                current_op.operand_one = value;
+                And(ref REGISTERS.A, value);
                 break;
+                }
             
             case 0xE7: // RST 20h
                 PushU16( ref REGISTERS.SP, REGISTERS.PC);
@@ -1144,10 +1323,11 @@ public class CPU {
 
             case 0xE8: { // ADD SP, byte
                 ushort a = REGISTERS.SP;
-
                 sbyte b = unchecked((sbyte)ReadByte(REGISTERS.PC++));
-                Tick(4);
-                Tick(4);
+                
+                current_op.operand_one = (byte)b;
+                
+                Tick(8);
 
                 int result = a + b;
                 
@@ -1167,6 +1347,8 @@ public class CPU {
             
             case 0xEA: { // LD (ushort), A
                 ushort address = ReadU16(ref REGISTERS.PC);
+                current_op.operand_one = (byte)address;
+                current_op.operand_two = (byte)(address >> 8);
                 WriteByte(address, REGISTERS.A);
                 break;
             }
@@ -1175,9 +1357,12 @@ public class CPU {
             // 0xEC UNUSED
             // 0xED UNUSED
                 
-            case 0xEE: // XOR A, byte
-                Xor(ref REGISTERS.A, ReadByte(REGISTERS.PC++));
+            case 0xEE: { // XOR A, byte
+                byte value = ReadByte(REGISTERS.PC++);
+                current_op.operand_one = value;
+                Xor(ref REGISTERS.A, value);
                 break;
+            }
             
             case 0xEF: // RST 28h
                 PushU16( ref REGISTERS.SP, REGISTERS.PC);
@@ -1187,14 +1372,21 @@ public class CPU {
             // -------- 0xFx --------
             
             case 0xF0: { // LD A, (FF00 + byte)
-                var addr = (ushort)(0xFF00 + ReadByte(REGISTERS.PC++));
+                byte value = ReadByte(REGISTERS.PC++);
+                var addr = (ushort)(0xFF00 + value);
+                current_op.operand_one = value;
                 REGISTERS.A = ReadByte(addr);
                 break;
             }
             
             case 0xF1: { // POP AF
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
+                
                 ushort value = PopU16(ref REGISTERS.SP);
                 REGISTERS.AF = value;
+                
+                current_op.SP_after = REGISTERS.SP;
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 break;
             }
             
@@ -1205,19 +1397,27 @@ public class CPU {
             
             case 0xF3: // DI
                 INTERRUPT_MASTER_ENABLE = false;
-                ENABLE_INTERRUPT_DELAY = -1;
+                ENABLE_INTERRUPT_DELAY = 0;
                 break;
             
             // 0xF4 UNUSED
             
             case 0xF5: // PUSH AF
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
+                
                 PushU16( ref REGISTERS.SP, REGISTERS.AF);
                 Tick(4);
+                
+                current_op.SP_after = REGISTERS.SP;
+                current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 break;
             
-            case 0xF6: // OR A, byte
-                Or(ref REGISTERS.A, ReadByte(REGISTERS.PC++));
+            case 0xF6: { // OR A, byte
+                byte value = ReadByte(REGISTERS.PC++);
+                current_op.operand_one = value;
+                Or(ref REGISTERS.A, value);
                 break;
+            }
             
             case 0xF7: // RST 30h
                 PushU16( ref REGISTERS.SP, REGISTERS.PC);
@@ -1227,7 +1427,7 @@ public class CPU {
             case 0xF8: { // LD HL, SP+byte
                 ushort sp = REGISTERS.SP;
                 sbyte offset = unchecked((sbyte)ReadByte(REGISTERS.PC++));
-                
+                current_op.operand_one = (byte)offset;
                 Tick(4);
 
                 int result = sp + offset;
@@ -1250,6 +1450,8 @@ public class CPU {
             
             case 0xFA: { // LD A, (u16)
                 ushort address = ReadU16(ref REGISTERS.PC);
+                current_op.operand_one = (byte)address;
+                current_op.operand_two = (byte)(address >> 8);
                 REGISTERS.A = ReadByte(address);
                 break;
             }
@@ -1263,6 +1465,7 @@ public class CPU {
             
             case 0xFE: { // CP A, u8
                 byte value = ReadByte(REGISTERS.PC++);
+                current_op.operand_one = value;
                 Compare(REGISTERS.A, value);
                 break;
             }
@@ -1274,6 +1477,7 @@ public class CPU {
 
             default: throw new Exception($"Unsupported OPCode: {opcode:X} (PC {REGISTERS.PC})");
         }
+        
     }
     
     private byte ReadCBRegister(int target) {
@@ -1307,9 +1511,15 @@ public class CPU {
 
         if (target == 6) {
             byte value = ReadByte(REGISTERS.HL);
-            byte result = ExecuteCBOperation(group, op, value);
-            WriteByte(REGISTERS.HL, result);
-            if (group == 0) Tick(4);
+            
+            if (group == 1) {
+                ExecuteBit(op, value);
+                Tick(4);
+            } else {
+                byte result = ExecuteCBOperation(group, op, value);
+                WriteByte(REGISTERS.HL, result);
+            }
+            
             return;
         }
 
