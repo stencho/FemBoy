@@ -24,6 +24,11 @@ public class GameboyEmulator {
 
     private string current_ROM = "";
     
+    bool _execution_paused = false;
+    public bool ExecutionPaused => _execution_paused;
+
+    private bool run_single_execution_step = false;
+    
     public GameboyEmulator() {
         texture = new Texture2D(State.graphics_device, 160, 144);
     }
@@ -46,6 +51,8 @@ public class GameboyEmulator {
     public void LoadROM(string filename) {
         Interlocked.Exchange(ref reloading, true);
         gameboy = new GameBoy();
+        GC.Collect();
+        
         input = new GBInput(gameboy);
 
         State.window.Title = $"RatGB [{Path.GetFileName(filename)}]";
@@ -57,11 +64,27 @@ public class GameboyEmulator {
         gameboy.LoadROM(filename);
         Interlocked.Exchange(ref reloading, false);
     }
+
+    public void ToggleExecution() {
+        _execution_paused = !_execution_paused;
+    }
+    
+    public void PauseExecution() => _execution_paused = true;
+    public void ResumeExecution() => _execution_paused = false;
+    
+    public void StepExecution() {
+        _execution_paused = true;
+        run_single_execution_step = true;
+    }
     
     public void Update() {
         if (CRASHED) return;
         if (gameboy == null || input == null) return;
+        if (ExecutionPaused && run_single_execution_step) {
+            run_single_execution_step = false;    
+        } else if (ExecutionPaused) return;
         
+
         input.Update(gameboy.joypad);
 
         try {
@@ -71,6 +94,7 @@ public class GameboyEmulator {
             }
         } catch (Exception ex) {
             CRASHED = true;
+            Console.WriteLine(ex.Message);
         }
 
         cycles = 0;
@@ -95,6 +119,9 @@ public class GameboyEmulator {
                         break;
                     case 3: 
                         frame_buffer[c] = new Color(15, 56, 15);
+                        break;
+                    default:
+                        frame_buffer[c] = new Color(255, 0, 255);
                         break;
                 }
             }

@@ -2,113 +2,76 @@ using RatGBLib.Mappers;
 
 namespace RatGBLib.Mappers.MBC;
 
-public class MBC1 : IMapper {
-    Cartridge cartridge;
+public class MBC1 : MBCMapper {
+    public override string Name => "MBC1";
     
-    public byte[] RAM;
-    public int RAM_size;
-    public bool RAMEnabled;
-    
+    private byte banking_mode = 0;
     private byte rom_bank_lo = 1;
     private byte rom_bank_hi = 0;
     
-    private byte banking_mode = 0;
+    int RAM_bank => banking_mode == 1 ? rom_bank_hi : 0;
     
-    public int RAM_bank => banking_mode == 1 ? rom_bank_hi : 0;
-    
-    private bool battery_saving = false;
-    public bool BatterySaving => battery_saving;
-    private bool RAM_dirty = false;
-    public bool RAMDirty => RAM_dirty;
     
     public MBC1(Cartridge cartridge, bool battery_save) {
         this.cartridge = cartridge;
         battery_saving = battery_save;
-        
-        int ram_size = cartridge.RAM_size_code switch
-        {
-            0x00 => 0,
-            0x01 => 2 * 1024,
-            0x02 => 8 * 1024,
-            0x03 => 32 * 1024,
-            0x04 => 128 * 1024,
-            0x05 => 64 * 1024,
-            _ => throw new InvalidDataException(
-                $"Unknown RAM size code {cartridge.RAM_size_code:X2}")
-        };
 
-        RAM_size = ram_size;
+        RAM_size = cartridge.GetRAMSize();
 
         if (battery_saving) {
-            RAM = SaveGame.Load(cartridge.ROMCRC32, ram_size);
+            RAM = SaveGame.Load(cartridge.ROMCRC32, RAM_size);
         } else {
-            if (ram_size > 0) {
-                RAM = new byte[ram_size];
-            }
-        }
-
-    }
-    
-    private int GetRAMOffset(ushort address) {
-        if (banking_mode == 0) return address - 0xA000;
-
-        return (RAM_bank * 0x2000) + (address - 0xA000);
-    }
-    
-    private byte ReadROMBank(int bank, int offset) {
-        int rom_offset = bank * 0x4000 + offset;
-
-        return cartridge.ROM[rom_offset];
-    }
-    
-    public byte Read(ushort address) {
-        if (address < 0x4000) {
-            int current_bank = banking_mode == 0 
-                ? 0 : rom_bank_hi << 5;
-            
-            return ReadROMBank(current_bank, address);
-        }
-        
-        if (address < 0x8000) {
-            int current_bank = rom_bank_lo | (rom_bank_hi << 5);
-            if ((current_bank & 0x1F) == 0) current_bank++;
-            
-            return ReadROMBank(current_bank, (address - 0x4000));
-        }
-
-        if (address >= 0xA000 && address < 0xC000) {
-            if (!RAMEnabled || RAM_size == 0) return 0xFF;
-            return RAM[GetRAMOffset(address)];
-        }
-
-        throw new ArgumentOutOfRangeException($"{address:X4}");
-    }
-
-    public void Write(ushort address, byte value) {
-        if (address < 0x2000) {
-            RAMEnabled = (value & 0x0F) == 0x0A;
-        } else if (address >= 0x2000 && address < 0x4000) {
-            rom_bank_lo = (byte)(value & 0x1F);
-            if (rom_bank_lo == 0) rom_bank_lo = 1;
-        } else if (address >= 0x4000 && address < 0x6000) {
-            rom_bank_hi = (byte)(value & 0x03);
-        } else if (address >= 0x6000 && address < 0x8000) {
-            banking_mode = (byte)(value & 0x01);
-        } else if (address >= 0xA000 && address < 0xC000) {
-            if (RAMEnabled && RAM_size != 0) {
-                RAM[GetRAMOffset(address)] = value;
-
-                if (battery_saving) {
-                    RAM_dirty = true;
-                }
+            if (RAM_size > 0) {
+                RAM = new byte[RAM_size];
             }
         }
     }
+    
+    public override byte Read(ushort address) {
+        switch (address) {
+            case < 0x4000: {
+                int current_bank = banking_mode == 0 ? 0 : rom_bank_hi << 5;
+                return ReadROMBank(current_bank, address);
+            }
+            
+            case < 0x8000: {
+                int current_bank = rom_bank_lo | (rom_bank_hi << 5);
+                if ((current_bank & 0x1F) == 0) current_bank++;
+                return ReadROMBank(current_bank, (address - 0x4000));
+            }
 
-    public void SaveRAM() {
-        if (RAM_dirty) {
-            SaveGame.Save(cartridge.ROMCRC32, RAM);
-            RAM_dirty = false;
+            case >= 0xA000 and <0xC000: {
+                if (!RAM_Enabled || RAM_size == 0) return 0xFF;
+                return ReadRAMBank(RAM_bank, (ushort)(banking_mode == 0 ? address - 0xA000 : address));
+            }
+            
+            default: throw new ArgumentOutOfRangeException($"{address:X4}");
+        }
+    }
+
+    public override void Write(ushort address, byte value) {
+        switch (address) {
+            case < 0x2000: 
+                RAM_Enabled = (value & 0x0F) == 0x0A;
+                break;
+            
+            case < 0x4000: 
+                rom_bank_lo = (byte)(value & 0x1F);
+                if (rom_bank_lo == 0) rom_bank_lo = 1;
+                break;
+            
+            case < 0x6000:
+                rom_bank_hi = (byte)(value & 0x03);
+                break;
+            
+            case < 0x8000:
+                banking_mode = (byte)(value & 0x01);
+                break;
+            
+            case >= 0xA000 and < 0xC000: 
+                if (RAM_Enabled && RAM_size != 0) 
+                    WriteRAMBank(RAM_bank, address, value);
+                break;
         }
     }
 }

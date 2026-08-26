@@ -12,7 +12,6 @@ public class GameBoy {
 
     public readonly byte[] RAM =  new byte[0x10000];
     
-
     public Cartridge cartridge;
     
     /*
@@ -55,7 +54,7 @@ public class GameBoy {
         CPU.REGISTERS.B = 0x00;
         CPU.REGISTERS.C = 0x13;
         
-        CPU.REGISTERS.D = 0x13;
+        CPU.REGISTERS.D = 0x00;
         CPU.REGISTERS.E = 0xD8;
         
         CPU.REGISTERS.H = 0x01;
@@ -172,7 +171,7 @@ public class GameBoy {
         if (address < 0x8000 || (address >= 0xA000 && address < 0xC000)) { return cartridge.Read(address); }
         
         // VRAM - RETURN 0xFF WHEN READ AND PPU IS IN LCD_TRANSFER MODE
-        if (address is >= 0x8000 and <= 0x9FFF) { if (PPU.Mode == PPU.STATMode.LCD_TRANSFER) return 0xFF; }
+        if (address is >= 0x8000 and <= 0x9FFF) { if (PPU.Mode == STATMode.LCD_TRANSFER) return 0xFF; }
 
         // ECHO RAM
         if (address >= 0xE000 && address <= 0xFDFF) return RAM[address - 0x2000];
@@ -222,7 +221,7 @@ public class GameBoy {
         
         if (address == TimerRegisterAddresses.TMA) {
             timer.TMA = value;
-            if (timer.ReloadPending && (timer.ReloadDelay == 0 || timer.ReloadDelay == 1)) timer.TIMA = value;
+            if (timer.ReloadPending && timer.ReloadDelay <= 1) timer.TIMA = value;
             return;
         }
         
@@ -237,7 +236,11 @@ public class GameBoy {
         
         // SERIAL REGISTERS 
         if (address == SerialRegisterAddresses.SB) { serial.SB = value; return; }
-        if (address == SerialRegisterAddresses.SC) { serial.SC = value; return; }
+
+        if (address == SerialRegisterAddresses.SC) {
+            //Console.Write((char)ReadByte(SerialRegisterAddresses.SB));
+            serial.SC = value; return;
+        }
         
         // AUDIO REGISTERS
         if (address == AudioRegisterAddresses.NR10) { Audio.NR10 = value; return; }
@@ -303,6 +306,7 @@ public class GameBoy {
     public int CyclesThisFrame = 0;
     public uint TotalCycles = 0;
     private uint save_timer = 0;
+    
     public void Tick(int cycles) {
         for (int i = 0; i < cycles; i++) {
             TotalCycles++;

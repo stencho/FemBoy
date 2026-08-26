@@ -25,9 +25,9 @@ public class RatGBGame : Game {
     public static FullResolutionRenderTarget output_render_target;
     public FullResolutionRenderTarget game_render_target;
 
-    //public static GameBoy gameboy = new GameBoy();
     private static GameboyEmulator gameboy;
     public static GameboyEmulator gb => gameboy;
+    
     private Texture2D memory_texture;
     private Color[] memory_colors = new Color[256 * 256];
     
@@ -40,6 +40,8 @@ public class RatGBGame : Game {
         emu_bind_list = [
             ("copy_debug_info", [Keys.Insert]),
             ("reload_rom", [Keys.R]),
+            ("pause_execution", [Keys.P]),
+            ("step_execution", [Keys.S]),
         ];
     public static BindWatcher ui_binds;
     public static BindWatcher emulator_binds;
@@ -71,7 +73,7 @@ public class RatGBGame : Game {
     protected override void LoadContent() {
         State.Load(Content);
 
-        ConsoleInputRunner.using_list = ConsoleInputRunner.using_list + "using RatGBLib;\nusing RatGB;\nusing static RatGB.RatGBGame;"; 
+        ConsoleInputRunner.using_list += "using RatGBLib;\nusing RatGB;\nusing static RatGB.RatGBGame;"; 
         
         gameboy = new GameboyEmulator();
         
@@ -83,17 +85,17 @@ public class RatGBGame : Game {
         game_render_target = new FullResolutionRenderTarget();
         
         //gb.LoadROM("gbmicrotest/000-write_to_x8000.gb");
-        //gb.LoadROM("bully.gb");
-        //gb.LoadROM("alley.gb");
-        
-        //gb.LoadROM("tetris.gb");
-        //gb.LoadROM("metroid2.gb");
-        //gb.LoadROM("kirby.gb");
-        //gb.LoadROM("pkmnred.gb");
-        gb.LoadROM("zelda.gb");
-        //gb.LoadROM("buttontest.gb");
-        //gb.LoadROM("int.gb");
-        
+        //gb.LoadROM("roms/bully.gb");
+        //gb.LoadROM("roms/alley.gb");
+        //gb.LoadROM("roms/tetris.gb");
+        //gb.LoadROM("roms/metroid2.gb");
+        //gb.LoadROM("roms/kirby.gb");
+        //gb.LoadROM("roms/pkmnred.gb");
+        //gb.LoadROM("roms/pkmngold.gbc");
+        //gb.LoadROM("roms/zelda.gb");
+        //gb.LoadROM("roms/sml.gb");
+        //gb.LoadROM("roms/buttontest.gb");
+        //gb.LoadROM("roms/int.gb");
         
         //gb.LoadROM("mooneye-test-suite/acceptance/timer/rapid_toggle.gb");
         //gb.LoadROM("mooneye-test-suite/emulator-only/mbc1/ram_64kb.gb");
@@ -108,6 +110,8 @@ public class RatGBGame : Game {
         //gb.LoadROM("mooneye-test-suite/acceptance/oam_dma/sources-GS.gb");
         
         //gb.LoadROM("mooneye-test-suite/acceptance/bits/unused_hwio-GS.gb");
+        
+        //gb.LoadROM("blargg/mem_timing/individual/01-read_timing.gb");
         
         //gb.LoadROM("blargg/instr_timing/instr_timing.gb");
         //gb.LoadROM("blargg/halt_bug.gb");
@@ -153,6 +157,7 @@ public class RatGBGame : Game {
             memory_texture.SetData(memory_colors);
 
             float ar = Interface.memory_window.client_area_aspect_ratio;
+            
             if (Interface.memory_window.client_size.X >= Interface.memory_window.client_size.Y) {
                 Draw2D.image(memory_texture, 
                     new Vector2i((Interface.memory_window.client_size.X / 2f) - (Interface.memory_window.client_size.X / ar) / 2f, 0),
@@ -195,6 +200,12 @@ public class RatGBGame : Game {
         if (emulator_binds.just_pressed("reload_rom")) {
             gb.ReloadROM();
         }
+        if (emulator_binds.just_pressed("pause_execution")) {
+            gb.ToggleExecution();
+        }
+        if (emulator_binds.just_pressed("step_execution")) {
+            gb.StepExecution();
+        }
         
         if (State.engine_binds.double_tapped("exit")) {
             Exit();
@@ -214,15 +225,16 @@ public class RatGBGame : Game {
         );
 
         var ar = (float)State.resolution.X / (float)State.resolution.Y;
+        float gb_ar = 160f / 144f;
         if (State.resolution.X >= State.resolution.Y) {
             Draw2D.image(gameboy.texture, 
-                new Vector2i((State.resolution.X / 2f) - ((State.resolution.X / ar) / 2f), 0),
-                new Vector2i(State.resolution.X / ar, State.resolution.Y)
+                new Vector2i((State.resolution.X / 2f) - (((State.resolution.X / ar) * gb_ar) / 2f), 0),
+                new Vector2i((State.resolution.X / ar) * gb_ar, State.resolution.Y)
             );
         } else {
             Draw2D.image(gameboy.texture, 
-                new Vector2i(0, (State.resolution.Y / 2f) - ((State.resolution.Y * ar) / 2f)),
-                new Vector2i(State.resolution.X, State.resolution.Y * ar)
+                new Vector2i(0, (State.resolution.Y / 2f) - (((State.resolution.Y * ar)  / gb_ar) / 2f)),
+                new Vector2i(State.resolution.X, (State.resolution.Y * ar)  / gb_ar)
             );
         }
 

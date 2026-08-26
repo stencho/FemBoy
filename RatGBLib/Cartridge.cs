@@ -21,6 +21,9 @@ public class Cartridge {
 
     private bool _has_RAM = false;
     public bool HasRAM => _has_RAM;
+
+    private bool _has_RTC = false;
+    public bool HasRTC => _has_RTC;
     
     public Cartridge(string file_name) {
         using (FileStream file = new(file_name, FileMode.Open)) {
@@ -47,11 +50,17 @@ public class Cartridge {
                 mapper = new MBC2(this);
                 break;
 
+            */
             
             case 0x0F: case 0x10: case 0x11: case 0x12: case 0x13:
-                mapper = new MBC3(this);
+                _has_RAM = cartridge_type is not 0x0F and not 0x11;
+                _has_battery = cartridge_type is not 0x11 and not 0x12;
+                _has_RTC = cartridge_type is not 0x11 and not 0x12 and not 0x13;
+                
+                if (RAM_size_code != 0x05) mapper = new MBC3(this, _has_battery, _has_RTC);
+                else mapper = new MBC30(this, _has_battery, _has_RTC);
                 break;
-            */
+            
             default:
                 throw new NotImplementedException($"Cartridge type not implemented: {cartridge_type:X2}");
 
@@ -90,6 +99,20 @@ public class Cartridge {
             */
         }
 
+    }
+
+    public int GetRAMSize() {
+        int size = RAM_size_code switch {
+            0x00 => 0,
+            0x01 => 2 * 1024,
+            0x02 => 8 * 1024,
+            0x03 => 32 * 1024,
+            0x04 => 128 * 1024,
+            0x05 => 64 * 1024,
+            _ => throw new InvalidDataException(
+                $"Unknown RAM size code {RAM_size_code:X2}")
+        };
+        return size;
     }
     
     public byte Read(ushort address) {

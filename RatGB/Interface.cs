@@ -58,14 +58,15 @@ public static class Interface {
     }
     
     public static string PrintOPInfo() {
+        if (gb.gameboy == null || gb.gameboy.cartridge == null || gb.gameboy.CPU == null) return "";
         if (!gb.gameboy.CPU.track_opcodes) return "";
         
         string output = "[Trace]\n";
         foreach (var op in gb.gameboy.CPU.LastNOpcodes) {
             string operand_one = op.operand_one != null ? $"{op.operand_one:X2}" : "  ";
             string operand_two = op.operand_two != null ? $"{op.operand_two:X2}" : "  ";
-            
-            output += $"{op.PC:X4} -> [{op.opcode:X2} {operand_one} {operand_two}] :: {op.name}\n";
+            if (op.cycles > op.intended_cycles) Console.WriteLine($"TOO MANY CYCLES {op.name} {op.cycles} > {op.intended_cycles}");
+            output += $"{op.cycles,2}:{op.intended_cycles,2}{(op.cycles > op.intended_cycles ? "TOO MANY CYCLES!!!!!" : "")} {op.PC:X4} -> [{op.opcode:X2} {operand_one} {operand_two}] :: {op.name}\n";
             if (op.name.StartsWith("CALL") || op.name.StartsWith("RET") || op.name.StartsWith("PUSH") || op.name.StartsWith("POP")) {
                 output += $"SP CHANGE {op.SP_before:X4} -> {op.SP_after:X4} \n";
                 
@@ -79,6 +80,7 @@ public static class Interface {
     }
 
     public static string PrintRegisters() {
+        if (gb.gameboy == null || gb.gameboy.cartridge == null || gb.gameboy.CPU == null) return "";
         string output =
             $"[Registers]\n" +
             $"[PC] {gb.gameboy.CPU.REGISTERS.PC:X4} [SP] {gb.gameboy.CPU.REGISTERS.SP:X4}\n" +
@@ -86,16 +88,29 @@ public static class Interface {
             $"[A] {gb.gameboy.CPU.REGISTERS.A:X2}    [F] {gb.gameboy.CPU.REGISTERS.F:X2}\n" +
             $"[B] {gb.gameboy.CPU.REGISTERS.B:X2}    [C] {gb.gameboy.CPU.REGISTERS.C:X2}\n" +
             $"[D] {gb.gameboy.CPU.REGISTERS.D:X2}    [E] {gb.gameboy.CPU.REGISTERS.E:X2}\n" +
-            $"[H] {gb.gameboy.CPU.REGISTERS.H:X2}    [L] {gb.gameboy.CPU.REGISTERS.L:X2}\n";
+            $"[H] {gb.gameboy.CPU.REGISTERS.H:X2}    [L] {gb.gameboy.CPU.REGISTERS.L:X2}\n" +
+            $"{(gb.ExecutionPaused ? "[PAUSED]\n" : "\n")}";
         return output;
     }
 
     public static string PrintCartridgeInfo() {
+        if (gb.gameboy == null || gb.gameboy.cartridge == null) return "";
         string output = "[Cartridge]\n";
         output += $"[CRC32]    {gb.gameboy.cartridge.ROMCRC32:X8}\n";
-        output += $"[Type]     {gb.gameboy.cartridge.cartridge_type:X2}\n";
-        output += $"[ROM code] {gb.gameboy.cartridge.ROM_size_code:X2}\n";
-        output += $"[RAM code] {gb.gameboy.cartridge.RAM_size_code:X2}\n";
+        output += $"[Type]     0x{gb.gameboy.cartridge.cartridge_type:X2}\n";
+        output += $"[ROM code] 0x{gb.gameboy.cartridge.ROM_size_code:X2}\n";
+        output += $"[RAM code] 0x{gb.gameboy.cartridge.RAM_size_code:X2}\n";
+        
+        output += $"[Mapper]   {gb.gameboy.cartridge.Mapper.Name}\n";
+        
+        if (gb.gameboy.cartridge.HasRAM) 
+        output += $"[RAM]      yes ({gb.gameboy.cartridge.GetRAMSize() / 1024}k)\n";
+        else 
+        output += $"[RAM]      no\n";
+
+        output += $"[Battery]  {(gb.gameboy.cartridge.HasBattery ? "yes" : "no")}\n";
+        output += $"[RTC]      {(gb.gameboy.cartridge.HasRTC ? "yes" : "no")}\n";
+        
         return output;
     }
     

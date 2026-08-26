@@ -4,7 +4,9 @@ namespace RatGBLib.Mappers;
 
 public class NoMapper : IMapper {
     Cartridge cartridge;
-
+    
+    public string Name => "None";
+    
     public NoMapper(Cartridge cartridge) {
         this.cartridge = cartridge;
     }

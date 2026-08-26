@@ -236,27 +236,25 @@ public class CPU {
     public byte ReadByte(ushort address) {
         byte value = 0;
 
-        Tick(3);
+        Tick(4);
         
         if (gameboy.PPU.LCDEnabled &&
             address >= 0xFE00 &&
             address <= 0xFE9F &&
-            (gameboy.PPU.Mode == PPU.STATMode.OAM_SEARCH ||
-             gameboy.PPU.Mode == PPU.STATMode.LCD_TRANSFER)) {
+            (gameboy.PPU.Mode == STATMode.OAM_SEARCH ||
+             gameboy.PPU.Mode == STATMode.LCD_TRANSFER)) {
             value = 0xFF;
         } else {
             if (gameboy.DMA.Active && (address < 0xFF00 || address >= 0xFFFE)) value = 0xFF;
             else value = gameboy.ReadByte(address);
         }
 
-        Tick(1);
         return value;
     }
 
     public void WriteByte(ushort address, byte value) {
-        Tick(3);
+        Tick(4);
         gameboy.WriteByte(address, value);
-        Tick(1);
     }
     
     public ushort ReadU16(ref ushort address) {
@@ -284,22 +282,31 @@ public class CPU {
     
     private GameBoy gameboy;
     public CPU(GameBoy gameboy) => this.gameboy = gameboy;
+
+    bool interrupt_active(byte IEIFMask, InterruptMask mask) {
+        return (IEIFMask & (byte)mask) != 0;
+    }
     
     private void ServiceInterrupt() {
-        INTERRUPT_MASTER_ENABLE = false;
-        
-        InterruptMask interrupt;
-
-        if (InterruptEnabled(InterruptMask.VBlank) && InterruptRequested(InterruptMask.VBlank)) interrupt = InterruptMask.VBlank;
-        else if (InterruptEnabled(InterruptMask.LCD) && InterruptRequested(InterruptMask.LCD)) interrupt = InterruptMask.LCD;
-        else if (InterruptEnabled(InterruptMask.Timer) && InterruptRequested(InterruptMask.Timer)) interrupt = InterruptMask.Timer;
-        else if (InterruptEnabled(InterruptMask.Serial) && InterruptRequested(InterruptMask.Serial)) interrupt = InterruptMask.Serial;
-        else if (InterruptEnabled(InterruptMask.Joypad) && InterruptRequested(InterruptMask.Joypad)) interrupt = InterruptMask.Joypad;
-        else return;
-        
         Tick(4);
+
+        InterruptMask interrupt;
+        if      (interrupt_active(latched_interrupt, InterruptMask.VBlank)) interrupt = InterruptMask.VBlank;
+        else if (interrupt_active(latched_interrupt, InterruptMask.LCD)) interrupt = InterruptMask.LCD;
+        else if (interrupt_active(latched_interrupt, InterruptMask.Timer)) interrupt = InterruptMask.Timer;
+        else if (interrupt_active(latched_interrupt, InterruptMask.Serial)) interrupt = InterruptMask.Serial;
+        else if (interrupt_active(latched_interrupt, InterruptMask.Joypad)) interrupt = InterruptMask.Joypad;
+        else {
+            REGISTERS.PC = 0x0000;
+            INTERRUPT_MASTER_ENABLE = false;
+            Tick(4);
+            return;
+        }
+        
     
         INTERRUPT_MASTER_ENABLE = false;
+        REGISTERS.IF &= (byte)~interrupt;
+        
         Tick(4);
         
         REGISTERS.SP--;
@@ -308,22 +315,25 @@ public class CPU {
         REGISTERS.SP--;
         WriteByte(REGISTERS.SP, (byte)REGISTERS.PC);
     
-        REGISTERS.IF &= (byte)~interrupt;
+        REGISTERS.PC = interrupt switch {
+            InterruptMask.VBlank => 0x0040,
+            InterruptMask.LCD    => 0x0048,
+            InterruptMask.Timer  => 0x0050,
+            InterruptMask.Serial => 0x0058,
+            InterruptMask.Joypad => 0x0060,
+            _                    => 0x0000
+        };
         
-        switch (interrupt) {
-            case InterruptMask.VBlank: REGISTERS.PC = 0x0040; break;
-            case InterruptMask.LCD:    REGISTERS.PC = 0x0048; break;
-            case InterruptMask.Timer:  REGISTERS.PC = 0x0050; break;
-            case InterruptMask.Serial: REGISTERS.PC = 0x0058; break;
-            case InterruptMask.Joypad: REGISTERS.PC = 0x0060; break;
-        }
-    
         Tick(4);
     }
 
     public ConcurrentQueue<OpcodeInfo> LastNOpcodes = new();
     private int track_n_opcodes = 40;
     public bool track_opcodes = false;
+    private uint last_op_total_cycles = 0;
+    private uint cycles_since_last_op = 0;
+
+    private byte latched_interrupt = 0;
     
     public void Execute() {
         if (STOPPED) Tick(4);
@@ -339,8 +349,12 @@ public class CPU {
             }
         }
         
-        if (INTERRUPT_MASTER_ENABLE && InterruptPending) {
+        byte pending = (byte)(REGISTERS.IE & REGISTERS.IF & 0x1F);
+        
+        if (INTERRUPT_MASTER_ENABLE && pending != 0) {
+            latched_interrupt = pending;
             ServiceInterrupt();
+            cycles_since_last_op -= 20;
             return;
         }
         
@@ -348,7 +362,7 @@ public class CPU {
             ENABLE_INTERRUPT_DELAY--;
             if (ENABLE_INTERRUPT_DELAY == 0) INTERRUPT_MASTER_ENABLE = true;
         }
-
+        
         ushort current_PC = REGISTERS.PC;
         byte opcode = FetchOpcode();
         
@@ -1013,7 +1027,7 @@ public class CPU {
                 current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
                 
                 PushU16( ref REGISTERS.SP, REGISTERS.BC);
-                Tick(4);
+                //Tick(4);
                 
                 current_op.SP_after = REGISTERS.SP;
                 current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
@@ -1066,7 +1080,9 @@ public class CPU {
             }
 
             case 0xCB: { // CB PREFIX
-                CBTable(ReadByte(REGISTERS.PC++));
+                var operand = ReadByte(REGISTERS.PC++);
+                current_op.operand_one = operand;
+                CBTable(operand);
                 break;
             }
                 
@@ -1179,7 +1195,7 @@ public class CPU {
                 current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
                 
                 PushU16( ref REGISTERS.SP, REGISTERS.DE);
-                Tick(4);
+                //Tick(4);
                 
                 current_op.SP_after = REGISTERS.SP;
                 current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
@@ -1303,7 +1319,7 @@ public class CPU {
                 current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
                 
                 PushU16( ref REGISTERS.SP, REGISTERS.HL);
-                Tick(4);
+                //Tick(4);
                 
                 current_op.SP_after = REGISTERS.SP;
                 current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
@@ -1406,7 +1422,7 @@ public class CPU {
                 current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
                 
                 PushU16( ref REGISTERS.SP, REGISTERS.AF);
-                Tick(4);
+                //Tick(4);
                 
                 current_op.SP_after = REGISTERS.SP;
                 current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
@@ -1478,6 +1494,10 @@ public class CPU {
             default: throw new Exception($"Unsupported OPCode: {opcode:X} (PC {REGISTERS.PC})");
         }
         
+        cycles_since_last_op = gameboy.TotalCycles - last_op_total_cycles;
+        last_op_total_cycles = gameboy.TotalCycles;
+
+        current_op.cycles = cycles_since_last_op;
     }
     
     private byte ReadCBRegister(int target) {
@@ -1514,7 +1534,6 @@ public class CPU {
             
             if (group == 1) {
                 ExecuteBit(op, value);
-                Tick(4);
             } else {
                 byte result = ExecuteCBOperation(group, op, value);
                 WriteByte(REGISTERS.HL, result);
@@ -1526,8 +1545,6 @@ public class CPU {
         byte register = ReadCBRegister(target);
         byte reg_result = ExecuteCBOperation(group, op, register);
         WriteCBRegister(target, reg_result);
-        
-        Tick(4);
     }
     
     private byte ExecuteCBOperation(int group, int operation, byte value) {

@@ -31,14 +31,18 @@ public class Timer {
                 TIMA_reload_pending = false;
             } else {
                 TIMA_reload_delay--;
-            
+
+                if (TIMA_reload_delay == 1) {
+                    gameboy.RequestInterrupt(CPU.InterruptMask.Timer);
+                }
+
                 if (TIMA_reload_delay == 0) {
                     TIMA = TMA;
-                    gameboy.RequestInterrupt(CPU.InterruptMask.Timer);
+                    TIMA_reload_pending = false;
                 }
             }
         }
-    
+        
         bool old_timer_signal = GetTimerSignal();
         divider++;
         bool timer_signal = GetTimerSignal();

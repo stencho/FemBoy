@@ -17,53 +17,31 @@ public static class PPURegisterAddresses {
     public const ushort WX   = 0xFF4B; // FF4B - Window X position
 }
 
-class Sprite {
-    public ushort address;
-    
-    public int X;
-    public int Y;
-        
-    public byte tile;
-    public byte attr;
-
-    public bool BGPriority => (byte)(attr & (1 << 7)) != 0;
-        
-    public bool FlipY => (byte)(attr & (1 << 6)) != 0;
-    public bool FlipX => (byte)(attr & (1 << 5)) != 0;
-        
-    public bool Palette1 => (byte)(attr & (1 << 4)) != 0;
-
-    public Sprite(GameBoy gameboy, ushort address) {
-        this.address = address;
-        
-        Y = gameboy.ReadOAM(address) - 16;
-        X = gameboy.ReadOAM((ushort)(address + 1)) - 8;
-
-        tile = gameboy.ReadOAM((ushort)(address + 2));
-        attr = gameboy.ReadOAM((ushort)(address + 3));
-    }
+public enum STATMode : byte {
+    HBLANK = 0, 
+    VBLANK = 1,
+    OAM_SEARCH = 2,
+    LCD_TRANSFER = 3
 }
 
 public class PPU {
     private int cycle_counter = 0;
-    private int pixels_drawn = 0;
+    public int pixels_drawn = 0;
     
     public readonly byte[] frame_buffer = new byte[160 * 144];
     public readonly byte[] frame_buffer_offscreen = new byte[160 * 144];
+    
     public bool frame_ready = false;
     
     private GameBoy gameboy;
 
     private List<Sprite> visible_sprites = new();
+    private BGFetcher bg_fetcher;
     
     public PPU(GameBoy gameboy) {
         this.gameboy = gameboy;
-
-        for (var index = 0; index < frame_buffer_offscreen.Length; index++) {
-            var b = frame_buffer_offscreen[index];
-            frame_buffer_offscreen[index] = 1;
-        }
-        
+        bg_fetcher = new(gameboy, this);
+        Array.Fill(frame_buffer_offscreen, (byte)0x01);
         Array.Copy(frame_buffer_offscreen, frame_buffer, frame_buffer.Length);
     }
 
@@ -92,104 +70,118 @@ public class PPU {
     public bool BGTileMap => (LCDC & 0x08) != 0;
     public int SpriteHeight => (LCDC & 0x04) != 0 ? 16 : 8;
     public bool OBJEnabled => (LCDC & 0x02) != 0;
-    public bool BGWindowEnabled => (LCDC & 0x01) != 0;
+    public bool BGAndWindowDisplayEnabled => (LCDC & 0x01) != 0;
 
-    
     public byte STAT {
         get => _STAT;
         set => _STAT = (byte)((value & 0xF8) | (_STAT & 0x07) | 0x80); //protect lower hardware-controlled bits
     }
-
-    [Flags]
-    public enum STATMode : byte {
-        HBLANK = 0, 
-        VBLANK = 1,
-        OAM_SEARCH = 2,
-        LCD_TRANSFER = 3
-    }
-    
     
     private void UpdateHardwareSTATBits(STATMode mode) {
         _STAT &= 0xF8;
         _STAT |= (byte)((byte)mode & 0x03);
         if (LY == LYC) _STAT |= 0x04;
     }
-
+    
+    private bool old_stat_line = false;
+    
     public STATMode Mode => mode;
     private STATMode mode = STATMode.OAM_SEARCH;
-
-    byte DrawBackgroundPixel() {
-        if (!BGWindowEnabled) return 0;
+    
+    public void Execute() {
+        if (!LCDEnabled) {
+            
+            LY = 0;
+            return;
+        }
         
-        int x = pixels_drawn;
-        int y = LY;
+        cycle_counter++;
 
-        int bg_x = (x + SCX) & 0xFF;
-        int bg_y = (y + SCY) & 0xFF;
+        switch (mode) {
+            case STATMode.HBLANK: break;
+            case STATMode.VBLANK: break;
+            case STATMode.OAM_SEARCH:
+                // Do sprite lookups
+                OAMLookup();
+                break;
+            case STATMode.LCD_TRANSFER:
+                // Background lookup/draw single pixel
+                if (!bg_fetcher.window_active 
+                  && WindowEnabled 
+                  && LY >= WY 
+                  && pixels_drawn >= (WX - 7)) {
+                    bg_fetcher.StartWindow();
+                }
+                
+                bg_fetcher.Tick();
+                
+                if (bg_fetcher.TryPopPixel(out byte bg_color) && pixels_drawn < 160) {
+                    int x = pixels_drawn;
+                    int y = LY;
 
-        int tile_x = bg_x >> 3;
-        int tile_y = bg_y >> 3;
-
-        int pixel_x = bg_x & 7;
-        int pixel_y = bg_y & 7;
-
-        int window_x = x - (WX - 7);
-        int window_y = LY - WY;
-
-        if (WindowEnabled) {
-            if (LY >= WY && x >= (WX - 7)) {
-                ushort w_tile_map = (ushort)((WindowTileMap) ? 0x9C00 : 0x9800);
+                    if (!BGAndWindowDisplayEnabled) bg_color = 0;
+                    
+                    byte shade = (byte)((BGP >> (bg_color * 2)) & 0x03);
+                    frame_buffer_offscreen[x + y * 160] = shade;
+                    
+                    DrawSpritePixel(bg_color);
+                    pixels_drawn++;
+                } 
                 
-                int w_tile_x = window_x >> 3;
-                int w_tile_y = window_y >> 3;
-                
-                ushort w_tile_address = (ushort)(w_tile_map + (w_tile_y * 32) + w_tile_x);
-                byte w_tile_id = gameboy.ReadVRAM(w_tile_address);
-
-                int w_pixel_y = window_y & 7;
-                
-                ushort w_tile_data = 0;
-                if (TileDataSelect)
-                    w_tile_data = (ushort)(0x8000 + (w_tile_id * 16) + (w_pixel_y * 2));
-                else
-                    w_tile_data = (ushort)(0x9000 + ((sbyte)w_tile_id * 16) + (w_pixel_y * 2));
-                
-                byte w_lo = gameboy.ReadVRAM(w_tile_data);
-                byte w_hi = gameboy.ReadVRAM((ushort)(w_tile_data + 1));
-                
-                int w_bit = 7 - (window_x & 7);
-                
-                byte w_color = (byte)(((w_hi >> w_bit) & 1) << 1 | ((w_lo >> w_bit) & 1));
-                byte w_shade = (byte)((BGP >> (w_color * 2)) & 0x03);
-                
-                frame_buffer_offscreen[x + y * 160] = w_shade;
-                return w_color;
-            }
+                break;
+            default:
+                throw new ArgumentOutOfRangeException();
+        }
+        
+        if (cycle_counter >= GameBoy.DOTS_PER_SCANLINE) {
+            cycle_counter -= GameBoy.DOTS_PER_SCANLINE;
+            
+            if (bg_fetcher.window_active) bg_fetcher.IncrementLineCounter();
+            
+            LY++;
+            LYC_interrupt_fired_this_line = false;
+            
+            if (LY == 144) {
+                bg_fetcher.ResetLineCounter();
+                bg_fetcher.window_active = false;
+                gameboy.RequestInterrupt(CPU.InterruptMask.VBlank);
+                if (!frame_ready) {
+                    Array.Copy(frame_buffer_offscreen, frame_buffer, frame_buffer.Length);
+                    frame_ready = true;
+                }
+            } 
+            
+            if (LY >= GameBoy.SCANLINES_PER_FRAME) LY = 0;
         }
 
-        ushort tile_map = (ushort)((BGTileMap) ? 0x9C00 : 0x9800);
-        ushort tile_address = (ushort)(tile_map + (tile_y * 32) + tile_x);
-
-        byte tile_id = gameboy.ReadVRAM(tile_address);
-
-        ushort tile_data = 0;
-        if (TileDataSelect)
-            tile_data = (ushort)(0x8000 + (tile_id * 16) + (pixel_y * 2));
-        else
-            tile_data = (ushort)(0x9000 + ((sbyte)tile_id * 16) + (pixel_y * 2));
-
-        byte lo = gameboy.ReadVRAM(tile_data);
-        byte hi = gameboy.ReadVRAM((ushort)(tile_data + 1));
-
-        int bit = 7 - pixel_x;
-
-        byte color = (byte)(((hi >> bit) & 1) << 1 | ((lo >> bit) & 1));
-        byte shade = (byte)((BGP >> (color * 2)) & 0x03);
+        STATMode old_mode = mode;
         
-        frame_buffer_offscreen[x + y * 160] = shade;
-        return color;
-    }
+        if (LY >= 144) mode = STATMode.VBLANK;
+        else if (cycle_counter < 80) mode = STATMode.OAM_SEARCH;
+        else if (cycle_counter < 252 || pixels_drawn < 160) mode = STATMode.LCD_TRANSFER;
+        else mode = STATMode.HBLANK;
 
+        
+        bool hblank_int_operand = (mode == STATMode.HBLANK) && ((_STAT & 0x08) != 0);
+        bool vblank_int_operand = (mode == STATMode.VBLANK) && ((_STAT & 0x10) != 0);
+        bool oam_int_operand    = (mode == STATMode.OAM_SEARCH) && ((_STAT & 0x20) != 0);
+        bool lyc_int_operand    = (LY == LYC) && ((_STAT & 0x40) != 0);
+
+        bool current_stat_line = hblank_int_operand || vblank_int_operand || oam_int_operand || lyc_int_operand;
+
+        if (!old_stat_line && current_stat_line) {
+            gameboy.RequestInterrupt(CPU.InterruptMask.LCD); 
+        }
+
+        old_stat_line = current_stat_line;
+
+        if (old_mode != STATMode.LCD_TRANSFER && mode == STATMode.LCD_TRANSFER) {
+            bg_fetcher.Start();
+            pixels_drawn = 0;
+        }
+        UpdateHardwareSTATBits(mode);
+    }
+    
     void OAMLookup() {
         visible_sprites.Clear();
         
@@ -199,13 +191,18 @@ public class PPU {
             int y = gameboy.ReadOAM(address) - 16;
 
             if (LY >= y && LY < y + SpriteHeight && visible_sprites.Count < 10) {
-                visible_sprites.Add(new Sprite(gameboy, address));
+                visible_sprites.Add(new Sprite(gameboy, address, i));
             }
         }
     }
 
     void DrawSpritePixel(byte background_color) {
         if (!OBJEnabled) return;
+
+        Sprite? final_sprite = null;
+        byte final_color = 0;
+        int final_x = int.MaxValue;
+        int final_oam = int.MaxValue;
         
         for (var index = 0; index < visible_sprites.Count; index++) {
             Sprite sprite = visible_sprites[index];
@@ -230,85 +227,28 @@ public class PPU {
             byte color = (byte)((((hi >> bit) & 1) << 1) | ((lo >> bit) & 1));
 
             if (color == 0) continue;
-            if (sprite.BGPriority && background_color != 0) continue;
-
-            byte palette = sprite.Palette1 ? OBP1 : OBP0;
-            byte shade = (byte)((palette >> (color * 2)) & 0x03);
-
-            frame_buffer_offscreen[pixels_drawn + LY * 160] = shade;
-            break;
-        }
-    }
-
-    private bool old_stat_line = false;
-    public void Execute() {
-        if (!LCDEnabled) {
-            LY = 0;
-            return;
-        }
-        
-        cycle_counter++;
-
-        switch (mode) {
-            case STATMode.HBLANK: break;
-            case STATMode.VBLANK: break;
-            case STATMode.OAM_SEARCH:
-                // Do sprite lookups
-                OAMLookup();
-                break;
-            case STATMode.LCD_TRANSFER:
-                // Background lookup/draw single pixel
-                if (pixels_drawn < 160) {
-                    byte background_color = DrawBackgroundPixel();
-                    DrawSpritePixel(background_color);
-                    pixels_drawn++;
-                }
-
-                break;
-            default:
-                throw new ArgumentOutOfRangeException();
-        }
-        
-        if (cycle_counter >= GameBoy.DOTS_PER_SCANLINE) {
-            cycle_counter -= GameBoy.DOTS_PER_SCANLINE;
-
-            LY++;
-            LYC_interrupt_fired_this_line = false;
-            pixels_drawn = 0;
             
-            if (LY == 144) {
-                if (!frame_ready) {
-                    Array.Copy(frame_buffer_offscreen, frame_buffer, frame_buffer.Length);
-                    frame_ready = true;
-                }
-
-                gameboy.RequestInterrupt(CPU.InterruptMask.VBlank);
-            } 
-            if (LY >= GameBoy.SCANLINES_PER_FRAME) LY = 0;
-        }
-        
-        if (LY >= 144) mode = STATMode.VBLANK;
-        else if (cycle_counter < 80) mode = STATMode.OAM_SEARCH;
-        else if (cycle_counter < 252) mode = STATMode.LCD_TRANSFER;
-        else mode = STATMode.HBLANK;
-        
-        bool LYC_match = (LY == LYC);
-        
-        bool hblank_int_operand = (mode == STATMode.HBLANK) && ((_STAT & 0x08) != 0);
-        bool vblank_int_operand = (mode == STATMode.VBLANK) && ((_STAT & 0x10) != 0);
-        bool oam_int_operand    = (mode == STATMode.OAM_SEARCH) && ((_STAT & 0x20) != 0);
-        bool lyc_int_operand    = (LY == LYC) && ((_STAT & 0x40) != 0);
-
-        bool current_stat_line = hblank_int_operand || vblank_int_operand || oam_int_operand || lyc_int_operand;
-
-        if (!old_stat_line && current_stat_line) {
-            gameboy.RequestInterrupt(CPU.InterruptMask.LCD); 
+            if (final_sprite == null 
+                || sprite.X < final_x 
+                || (sprite.X == final_sprite.X && index < final_oam)) {
+                final_sprite = sprite;
+                final_x = sprite.X;
+                final_oam = index;
+                final_color = color;
+            }
         }
 
-        old_stat_line = current_stat_line;
+        if (final_sprite == null) return;
+        if (final_color == 0) return;
+        if (final_sprite.BGPriority && background_color != 0) return;
+        
+        byte palette = final_sprite.Palette1 ? OBP1 : OBP0;
+        byte shade = (byte)((palette >> (final_color * 2)) & 0x03);
 
-        UpdateHardwareSTATBits(mode);
+        frame_buffer_offscreen[pixels_drawn + LY * 160] = shade;
+        
     }
+
 }
 
 
