@@ -8,6 +8,7 @@ public class GameBoy {
     public const int CYCLES_PER_FRAME = 70_224;
     public const uint CLOCK_SPEED_HZ = 4_194_304;
     public const int SCANLINES_PER_FRAME = 154;
+    public const int VBLANK_SCANLINE = 144;
     public const int DOTS_PER_SCANLINE = 456;
 
     public readonly byte[] RAM =  new byte[0x10000];
@@ -54,7 +55,7 @@ public class GameBoy {
         CPU.REGISTERS.B = 0x00;
         CPU.REGISTERS.C = 0x13;
         
-        CPU.REGISTERS.D = 0x00;
+        CPU.REGISTERS.D = 0x13;
         CPU.REGISTERS.E = 0xD8;
         
         CPU.REGISTERS.H = 0x01;
@@ -170,9 +171,6 @@ public class GameBoy {
         // CARTRIDGE
         if (address < 0x8000 || (address >= 0xA000 && address < 0xC000)) { return cartridge.Read(address); }
         
-        // VRAM - RETURN 0xFF WHEN READ AND PPU IS IN LCD_TRANSFER MODE
-        if (address is >= 0x8000 and <= 0x9FFF) { if (PPU.Mode == STATMode.LCD_TRANSFER) return 0xFF; }
-
         // ECHO RAM
         if (address >= 0xE000 && address <= 0xFDFF) return RAM[address - 0x2000];
         
@@ -185,11 +183,31 @@ public class GameBoy {
         if (address == InterruptRegisterAddresses.IE) { CPU.REGISTERS.IE = value; return; }
 
         // PPU REGISTERS
-        if (address == PPURegisterAddresses.LCDC) { PPU.LCDC = value; return; }
+        if (address == PPURegisterAddresses.LCDC) {
+            bool lcd_old = PPU.LCDEnabled;
+            PPU.LCDC = value; 
+            
+            // TURN ON LCD
+            if (PPU.LCDEnabled && !lcd_old) {
+                PPU.LCDOn();
+            }
+            
+            // TURN OFF LCD
+            if (!PPU.LCDEnabled && lcd_old) {
+                PPU.LCDOff();
+            }
+            
+            return; 
+        }
+        
         if (address == PPURegisterAddresses.STAT) { PPU.STAT = value; return; }
         
         if (address == PPURegisterAddresses.SCY) { PPU.SCY = value; return; }
-        if (address == PPURegisterAddresses.SCX) { PPU.SCX = value; return; }
+        if (address == PPURegisterAddresses.SCX) {
+        {
+            PPU.SCX = value;
+            return;
+        } }
 
         if (address == PPURegisterAddresses.LY) { PPU.LY = 0x00; return; }
         if (address == PPURegisterAddresses.LYC) { PPU.LYC = value; return; }
@@ -207,7 +225,7 @@ public class GameBoy {
 
         if (address == TimerRegisterAddresses.TIMA) { 
             if (timer.ReloadPending) {
-                if (timer.ReloadDelay > 0) {
+                if (timer.ReloadDelay <= 1) {
                     timer.CancelPendingTIMAReload(value);
                 } else {
                     timer.TIMA = timer.TMA;
@@ -238,7 +256,7 @@ public class GameBoy {
         if (address == SerialRegisterAddresses.SB) { serial.SB = value; return; }
 
         if (address == SerialRegisterAddresses.SC) {
-            //Console.Write((char)ReadByte(SerialRegisterAddresses.SB));
+            Console.Write((char)RAM[SerialRegisterAddresses.SB]);
             serial.SC = value; return;
         }
         
@@ -300,7 +318,7 @@ public class GameBoy {
     }
     
     public void LoadROM(string file_name) {
-        cartridge = new Cartridge(file_name);
+        cartridge = new Cartridge(this, file_name);
     }
 
     public int CyclesThisFrame = 0;
@@ -319,6 +337,8 @@ public class GameBoy {
         
         CyclesThisFrame += cycles;
     }
+
+    
     
     public int Execute() {
         CPU.Execute();

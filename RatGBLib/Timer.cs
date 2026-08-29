@@ -52,12 +52,9 @@ public class Timer {
 
     public void CancelPendingTIMAReload(byte value) {
         TIMA = value;
-        
         TIMA_reload_pending = false;
         TIMA_reload_delay = 0;
     }
-    
-    public uint last_tima_increment = 0;
     
     void IncrementTIMA() {
         if (TIMA_reload_pending) {
@@ -71,8 +68,6 @@ public class Timer {
                 return;
             }
         }
-
-        last_tima_increment = gameboy.TotalCycles;
         
         if (TIMA == 0xFF) {
             TIMA = 0x00;

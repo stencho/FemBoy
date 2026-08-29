@@ -24,8 +24,11 @@ public class Cartridge {
 
     private bool _has_RTC = false;
     public bool HasRTC => _has_RTC;
+
+    internal GameBoy gameboy;
     
-    public Cartridge(string file_name) {
+    public Cartridge(GameBoy gameboy, string file_name) {
+        this.gameboy = gameboy;
         using (FileStream file = new(file_name, FileMode.Open)) {
             ROM = new byte[file.Length];
             file.ReadExactly(ROM, 0, ROM.Length);
@@ -61,14 +64,10 @@ public class Cartridge {
                 else mapper = new MBC30(this, _has_battery, _has_RTC);
                 break;
             
-            default:
-                throw new NotImplementedException($"Cartridge type not implemented: {cartridge_type:X2}");
-
-            /*
             case 0x19: case 0x1A: case 0x1B: case 0x1C: case 0x1D: case 0x1E:
-                //mapper = new MBC5(this);
+                mapper = new MBC5(this);
                 break;
-
+/*
             case 0x20:
                 //mapper = new MBC6(this);
                 break;
@@ -84,19 +83,21 @@ public class Cartridge {
             case 0xFC:
                 //mapper = new PocketCamera(this);
                 break;
-            
+
             case 0xFD:
                 //mapper = new TAMA5(this);
                 break;
-            
+
             case 0xFE:
                 //mapper = new HuC3(this);
                 break;
-            
+
             case 0xFF:
                 //mapper = new HuC1(this);
                 break;
             */
+            
+            default: throw new NotImplementedException($"Cartridge type not implemented: {cartridge_type:X2}");
         }
 
     }

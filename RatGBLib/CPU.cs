@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.SymbolStore;
 
 namespace RatGBLib;
 using static GameBoy;
@@ -29,8 +30,7 @@ public class CPU {
         Joypad = 0x10
     }
     
-    public bool InterruptEnabled(InterruptMask interrupt) => (gameboy.ReadByte(0xFFFF) & (byte)interrupt) != 0;
-    public bool InterruptRequested(InterruptMask interrupt) => (gameboy.ReadByte(0xFF0F) & (byte)interrupt) != 0; 
+    public bool InterruptRequested(InterruptMask interrupt) => (REGISTERS.IE & REGISTERS.IF & (byte)interrupt) != 0;
     
     public bool InterruptPending => (REGISTERS.IE & REGISTERS.IF & 0x1F) != 0;
     
@@ -235,26 +235,29 @@ public class CPU {
 
     public byte ReadByte(ushort address) {
         byte value = 0;
-
-        Tick(4);
         
+        Tick(3);
+        
+        // CPU-ONLY ACCESS RESTRICTIONS
         if (gameboy.PPU.LCDEnabled &&
             address >= 0xFE00 &&
             address <= 0xFE9F &&
-            (gameboy.PPU.Mode == STATMode.OAM_SEARCH ||
-             gameboy.PPU.Mode == STATMode.LCD_TRANSFER)) {
+            (gameboy.PPU.mode == STATMode.OAM_SEARCH ||
+             gameboy.PPU.mode == STATMode.LCD_TRANSFER)) {
             value = 0xFF;
-        } else {
-            if (gameboy.DMA.Active && (address < 0xFF00 || address >= 0xFFFE)) value = 0xFF;
-            else value = gameboy.ReadByte(address);
-        }
-
+        } 
+        else if (address is >= 0x8000 and <= 0x9FFF && (gameboy.PPU.mode == STATMode.LCD_TRANSFER)) { return 0xFF; }
+        else if (gameboy.DMA.Active && (address < 0xFF00 || address >= 0xFFFE)) value = 0xFF;
+        else value = gameboy.ReadByte(address);
+        
+        Tick(1);
         return value;
-    }
+    } 
 
     public void WriteByte(ushort address, byte value) {
-        Tick(4);
+        Tick(2);
         gameboy.WriteByte(address, value);
+        Tick(2);
     }
     
     public ushort ReadU16(ref ushort address) {
@@ -282,30 +285,28 @@ public class CPU {
     
     private GameBoy gameboy;
     public CPU(GameBoy gameboy) => this.gameboy = gameboy;
-
-    bool interrupt_active(byte IEIFMask, InterruptMask mask) {
-        return (IEIFMask & (byte)mask) != 0;
-    }
     
     private void ServiceInterrupt() {
         Tick(4);
 
         InterruptMask interrupt;
-        if      (interrupt_active(latched_interrupt, InterruptMask.VBlank)) interrupt = InterruptMask.VBlank;
-        else if (interrupt_active(latched_interrupt, InterruptMask.LCD)) interrupt = InterruptMask.LCD;
-        else if (interrupt_active(latched_interrupt, InterruptMask.Timer)) interrupt = InterruptMask.Timer;
-        else if (interrupt_active(latched_interrupt, InterruptMask.Serial)) interrupt = InterruptMask.Serial;
-        else if (interrupt_active(latched_interrupt, InterruptMask.Joypad)) interrupt = InterruptMask.Joypad;
+        if      (InterruptRequested(InterruptMask.VBlank)) interrupt = InterruptMask.VBlank;
+        else if (InterruptRequested(InterruptMask.LCD)) interrupt = InterruptMask.LCD;
+        else if (InterruptRequested(InterruptMask.Timer)) interrupt = InterruptMask.Timer;
+        else if (InterruptRequested(InterruptMask.Serial)) interrupt = InterruptMask.Serial;
+        else if (InterruptRequested(InterruptMask.Joypad)) interrupt = InterruptMask.Joypad;
         else {
             REGISTERS.PC = 0x0000;
             INTERRUPT_MASTER_ENABLE = false;
             Tick(4);
             return;
         }
+
         
-    
+        
         INTERRUPT_MASTER_ENABLE = false;
-        REGISTERS.IF &= (byte)~interrupt;
+        REGISTERS.IF &= (byte)~(byte)interrupt;
+
         
         Tick(4);
         
@@ -328,40 +329,38 @@ public class CPU {
     }
 
     public ConcurrentQueue<OpcodeInfo> LastNOpcodes = new();
-    private int track_n_opcodes = 40;
+    private int track_n_opcodes = 80;
     public bool track_opcodes = false;
     private uint last_op_total_cycles = 0;
     private uint cycles_since_last_op = 0;
-
-    private byte latched_interrupt = 0;
     
     public void Execute() {
-        if (STOPPED) Tick(4);
+        if (STOPPED) {
+            Tick(4);
+            return;
+        }
 
         if (HALTED) {
             if (InterruptPending) {
                 HALTED = false;
                 if (INTERRUPT_MASTER_ENABLE) Tick(4);
-                
             } else {
                 Tick(4);
                 return; 
             }
         }
         
-        byte pending = (byte)(REGISTERS.IE & REGISTERS.IF & 0x1F);
-        
-        if (INTERRUPT_MASTER_ENABLE && pending != 0) {
-            latched_interrupt = pending;
-            ServiceInterrupt();
-            cycles_since_last_op -= 20;
-            return;
-        }
-        
         if (ENABLE_INTERRUPT_DELAY > 0) {
             ENABLE_INTERRUPT_DELAY--;
             if (ENABLE_INTERRUPT_DELAY == 0) INTERRUPT_MASTER_ENABLE = true;
         }
+        
+        if (INTERRUPT_MASTER_ENABLE && InterruptPending) {
+            ServiceInterrupt();
+            cycles_since_last_op -= 20;
+            return;
+        }
+
         
         ushort current_PC = REGISTERS.PC;
         byte opcode = FetchOpcode();
@@ -961,13 +960,14 @@ public class CPU {
             case 0xC0: // RET NZ
                 current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
                 
+                Tick(4);
+                
                 if (!REGISTERS.GetFlag(GBRegisters.Mask.Zero)) {
                     ushort value = PopU16(ref REGISTERS.SP);
                     REGISTERS.PC = value;
                     Tick(4);
                     current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 }
-                Tick(4);
                 current_op.SP_after = REGISTERS.SP;
                 break;
             
@@ -1046,6 +1046,8 @@ public class CPU {
                 break;
             
             case 0xC8: // RET Z
+                Tick(4);
+                
                 current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
                 if (REGISTERS.GetFlag(GBRegisters.Mask.Zero)) {
                     REGISTERS.PC = PopU16(ref REGISTERS.SP);
@@ -1053,14 +1055,13 @@ public class CPU {
                     current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 }
                 
-                Tick(4);
                 current_op.SP_after = REGISTERS.SP;
                 break;
             
             case 0xC9: // RET
                 current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
-                REGISTERS.PC = PopU16(ref REGISTERS.SP);
                 Tick(4);
+                REGISTERS.PC = PopU16(ref REGISTERS.SP);
                 current_op.SP_after = REGISTERS.SP;
                 current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 break;
@@ -1135,13 +1136,13 @@ public class CPU {
             
             case 0xD0: { // RET NC
                 current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
+                Tick(4);
                 if (!REGISTERS.GetFlag(GBRegisters.Mask.Carry)) {
                     REGISTERS.PC = PopU16(ref REGISTERS.SP);
                     Tick(4);
                     current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 }
                 
-                Tick(4);
                 current_op.SP_after = REGISTERS.SP;
                 break;
             }
@@ -1216,23 +1217,24 @@ public class CPU {
             case 0xD8: // RET C
                 current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
                 
+                Tick(4);
+                
                 if (REGISTERS.GetFlag(GBRegisters.Mask.Carry)) {
                     REGISTERS.PC = PopU16(ref REGISTERS.SP);
                     Tick(4);
                     current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 }
                 
-                Tick(4);
                 current_op.SP_after = REGISTERS.SP;
                 break;
             
             case 0xD9: // RETI
                 current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
+                Tick(4);
                 
                 REGISTERS.PC = PopU16(ref REGISTERS.SP);
                 INTERRUPT_MASTER_ENABLE = true;
                 ENABLE_INTERRUPT_DELAY = 0;
-                Tick(4);
                 
                 current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_after);
                 current_op.SP_after = REGISTERS.SP;

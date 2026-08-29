@@ -46,6 +46,12 @@ public class BGFetcher {
         }
     }
     
+    private byte window_line_counter;
+    public byte WindowLineCounter => window_line_counter;
+    
+    public void IncrementWindowLineCounter() => window_line_counter++;
+    public void ResetWindowLineCounter() => window_line_counter = 0;
+
     public void Start() {
         FIFO.Clear();
         dot_counter = 0;
@@ -64,12 +70,6 @@ public class BGFetcher {
         current_fetch_state = FetchState.Tile;
     }
 
-    private byte window_line_counter;
-    public byte WindowLineCounter => window_line_counter;
-    
-    public void IncrementLineCounter() => window_line_counter++;
-    public void ResetLineCounter() => window_line_counter = 0;
-    
     public void StartWindow() {
         FIFO.Clear();
         window_active = true;

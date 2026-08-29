@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using RatGBLib;
@@ -23,6 +24,7 @@ public class GameboyEmulator {
     public bool Crashed => CRASHED;
 
     private string current_ROM = "";
+    public string ROMName = "";
     
     bool _execution_paused = false;
     public bool ExecutionPaused => _execution_paused;
@@ -51,15 +53,19 @@ public class GameboyEmulator {
     public void LoadROM(string filename) {
         Interlocked.Exchange(ref reloading, true);
         gameboy = new GameBoy();
+        
+        UpdateFrameBufferTexture();
         GC.Collect();
         
         input = new GBInput(gameboy);
-
-        State.window.Title = $"RatGB [{Path.GetFileName(filename)}]";
+        ROMName = Path.GetFileName(filename);
+        State.window.Title = $"RatGB [{ROMName}]";
         
         cycles = 0;
+        total_frames = 0;
         CRASHED = false;
-
+        //_execution_paused = false;
+        
         current_ROM = filename;
         gameboy.LoadROM(filename);
         Interlocked.Exchange(ref reloading, false);
@@ -76,6 +82,8 @@ public class GameboyEmulator {
         _execution_paused = true;
         run_single_execution_step = true;
     }
+    
+    public int total_frames = 0;
     
     public void Update() {
         if (CRASHED) return;
@@ -98,6 +106,7 @@ public class GameboyEmulator {
         }
 
         cycles = 0;
+        total_frames++;
     }
 
     public void Render() {
@@ -105,29 +114,36 @@ public class GameboyEmulator {
         if (gameboy == null || input == null) return;
         
         if (gameboy.PPU.frame_ready) {
-            for (int c = 0; c < 160 * 144; c++) {
-                byte b = gameboy.PPU.frame_buffer[c];
-                switch (b) {
-                    case 0:
-                        frame_buffer[c] = new Color(155, 188, 15);
-                        break;
-                    case 1: 
-                        frame_buffer[c] = new Color(139, 172, 15);
-                        break;
-                    case 2: 
-                        frame_buffer[c] = new Color(48, 98, 48);
-                        break;
-                    case 3: 
-                        frame_buffer[c] = new Color(15, 56, 15);
-                        break;
-                    default:
-                        frame_buffer[c] = new Color(255, 0, 255);
-                        break;
-                }
-            }
-            
-            texture.SetData(frame_buffer);
+            //if (!gameboy.PPU.LCDOutput) {
+                //Array.Fill(gameboy.PPU.frame_buffer, (byte)0xFF);
+            //}
+            UpdateFrameBufferTexture();
             gameboy.PPU.frame_ready = false;
         }
+    }
+
+    void UpdateFrameBufferTexture() {
+        Parallel.For(0, 160 * 144, (c) => {
+            //for (int c = 0; c < 160 * 144; c++) {
+            switch (gameboy.PPU.frame_buffer[c]) {
+                case 0:
+                    frame_buffer[c] = new Color(155, 188, 15);
+                    break;
+                case 1:
+                    frame_buffer[c] = new Color(139, 172, 15);
+                    break;
+                case 2:
+                    frame_buffer[c] = new Color(48, 98, 48);
+                    break;
+                case 3:
+                    frame_buffer[c] = new Color(15, 56, 15);
+                    break;
+                default:
+                    frame_buffer[c] = new Color(255, 0, 255);
+                    break;
+            }
+        });
+            
+        texture.SetData(frame_buffer);
     }
 }

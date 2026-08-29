@@ -25,7 +25,7 @@ public enum STATMode : byte {
 }
 
 public class PPU {
-    private int cycle_counter = 0;
+    public int cycle_counter = 0;
     public int pixels_drawn = 0;
     
     public readonly byte[] frame_buffer = new byte[160 * 144];
@@ -36,21 +36,18 @@ public class PPU {
     private GameBoy gameboy;
 
     private List<Sprite> visible_sprites = new();
-    private BGFetcher bg_fetcher;
+    public BGFetcher bg_fetcher;
     
     public PPU(GameBoy gameboy) {
         this.gameboy = gameboy;
         bg_fetcher = new(gameboy, this);
-        Array.Fill(frame_buffer_offscreen, (byte)0x01);
+        Array.Fill(frame_buffer_offscreen, (byte)0x00);
         Array.Copy(frame_buffer_offscreen, frame_buffer, frame_buffer.Length);
     }
 
     public byte LY = 0x00;
     public byte LYC = 0x00;
-
-    private bool LYC_interrupt_fired_this_line = false;
     
-    private byte _STAT = 0x80;
 
     public byte SCX = 0x00;
     public byte SCY = 0x00;
@@ -72,114 +69,190 @@ public class PPU {
     public bool OBJEnabled => (LCDC & 0x02) != 0;
     public bool BGAndWindowDisplayEnabled => (LCDC & 0x01) != 0;
 
+    private byte _STAT = 0x80;
     public byte STAT {
         get => _STAT;
         set => _STAT = (byte)((value & 0xF8) | (_STAT & 0x07) | 0x80); //protect lower hardware-controlled bits
     }
     
-    private void UpdateHardwareSTATBits(STATMode mode) {
+    public void UpdateHardwareSTATBits(STATMode mode) {
         _STAT &= 0xF8;
         _STAT |= (byte)((byte)mode & 0x03);
+        if (!LCDEnabled) return;
         if (LY == LYC) _STAT |= 0x04;
     }
     
     private bool old_stat_line = false;
     
-    public STATMode Mode => mode;
-    private STATMode mode = STATMode.OAM_SEARCH;
+    public STATMode mode = STATMode.OAM_SEARCH;
+    
+    private bool LCD_startup = false;
+    private bool LCD_startup_frame = false;
+    private int LCD_startup_line_counter = 0;
+
+    public bool LCDOutput => !LCD_startup_frame;
+
+    public void LCDOn() {
+        cycle_counter = 0;
+        LY = 0;
+            
+        mode = STATMode.HBLANK;
+        UpdateHardwareSTATBits(mode);
+        
+        LCD_startup = true;
+        LCD_startup_frame = true;
+        frame_ready = false;
+        LCD_startup_line_counter = 0;
+        
+        bg_fetcher.ResetWindowLineCounter();
+        bg_fetcher.FIFO.Clear();
+        
+        Array.Fill(frame_buffer_offscreen, (byte)0x00);
+        Array.Fill(frame_buffer, (byte)0x00);
+    }
+    
+    public void LCDOff() {
+        cycle_counter = 0;
+        LY = 0;
+
+        bg_fetcher.ResetWindowLineCounter();
+        bg_fetcher.FIFO.Clear();
+
+        mode = STATMode.HBLANK;
+        UpdateHardwareSTATBits(mode);
+
+        old_stat_line = false;
+        
+        Array.Fill(frame_buffer_offscreen, (byte)0x00);
+        Array.Fill(frame_buffer, (byte)0x00);
+    }
     
     public void Execute() {
-        if (!LCDEnabled) {
-            
-            LY = 0;
-            return;
-        }
-        
+        // Increment cycle/dot counter 
         cycle_counter++;
-
+    
         switch (mode) {
-            case STATMode.HBLANK: break;
-            case STATMode.VBLANK: break;
             case STATMode.OAM_SEARCH:
-                // Do sprite lookups
-                OAMLookup();
+                // Do sprite lookups, but not during the first
+                // scanline after turning the LCD on
+                if (!LCD_startup)
+                    OAMLookup();
                 break;
+            
             case STATMode.LCD_TRANSFER:
                 // Background lookup/draw single pixel
-                if (!bg_fetcher.window_active 
-                  && WindowEnabled 
-                  && LY >= WY 
-                  && pixels_drawn >= (WX - 7)) {
+
+                // Hit a window, fetch pixels from it
+                if (!bg_fetcher.window_active && WindowEnabled && LY >= WY && pixels_drawn >= (WX - 7)) {
                     bg_fetcher.StartWindow();
                 }
-                
-                bg_fetcher.Tick();
-                
-                if (bg_fetcher.TryPopPixel(out byte bg_color) && pixels_drawn < 160) {
-                    int x = pixels_drawn;
-                    int y = LY;
 
-                    if (!BGAndWindowDisplayEnabled) bg_color = 0;
-                    
-                    byte shade = (byte)((BGP >> (bg_color * 2)) & 0x03);
-                    frame_buffer_offscreen[x + y * 160] = shade;
-                    
-                    DrawSpritePixel(bg_color);
-                    pixels_drawn++;
-                } 
-                
-                break;
-            default:
-                throw new ArgumentOutOfRangeException();
-        }
-        
-        if (cycle_counter >= GameBoy.DOTS_PER_SCANLINE) {
-            cycle_counter -= GameBoy.DOTS_PER_SCANLINE;
-            
-            if (bg_fetcher.window_active) bg_fetcher.IncrementLineCounter();
-            
-            LY++;
-            LYC_interrupt_fired_this_line = false;
-            
-            if (LY == 144) {
-                bg_fetcher.ResetLineCounter();
-                bg_fetcher.window_active = false;
-                gameboy.RequestInterrupt(CPU.InterruptMask.VBlank);
-                if (!frame_ready) {
-                    Array.Copy(frame_buffer_offscreen, frame_buffer, frame_buffer.Length);
-                    frame_ready = true;
+                // Tick the background pixel fetcher
+                bg_fetcher.Tick();
+
+                // Attempt to pop a pixel from the fetcher FIFO
+                if (bg_fetcher.TryPopPixel(out byte bg_color)) {
+                    if (pixels_drawn < 160) {
+                        int x = pixels_drawn;
+                        int y = LY;
+
+                        if (!BGAndWindowDisplayEnabled) bg_color = 0;
+
+                        byte shade = (byte)((BGP >> (bg_color * 2)) & 0x03);
+                        frame_buffer_offscreen[x + y * 160] = shade;
+
+                        DrawSpritePixel(bg_color);
+                        pixels_drawn++;
+                    }
                 }
+
+                break;
+
+        }
+    
+        // Count cycles to increment LY and fire VBLANK events when needed
+        // Basically, things in here happen once per scanline
+        if (cycle_counter == GameBoy.DOTS_PER_SCANLINE) {
+            cycle_counter = 0;
+            
+            if (LCDEnabled) {
+                
+                if (bg_fetcher.window_active) bg_fetcher.IncrementWindowLineCounter();
+
+                if (LCD_startup_frame) {
+                    LCD_startup_line_counter++;
+                    LY = 0;
+                } else {
+                    LY++;
+                }
+                
+                if (LY == 144 && !LCD_startup_frame) { // If LY is 144, we've hit the VBLANK period
+                    
+                    // Reset BG fetcher line counter and disable window
+                    bg_fetcher.ResetWindowLineCounter();
+                    bg_fetcher.window_active = false;
+
+                    // VBLANK IRQ
+                    if (!LCD_startup_frame) gameboy.RequestInterrupt(CPU.InterruptMask.VBlank);
+
+                    // Copy data from offscreen frame buffer to presentation buffer
+                    if (!frame_ready) {
+                        Array.Copy(frame_buffer_offscreen, frame_buffer, frame_buffer.Length);
+                        frame_ready = true;
+                    }
+
+                }
+
+                // Hit the end of the frame, reset LY to 0
+                if (LY == GameBoy.SCANLINES_PER_FRAME) LY = 0;
+                if (LCD_startup_frame && LCD_startup_line_counter == GameBoy.SCANLINES_PER_FRAME) LCD_startup_frame = false;
+                if (LCD_startup) LCD_startup = false;
+                
             } 
             
-            if (LY >= GameBoy.SCANLINES_PER_FRAME) LY = 0;
         }
-
-        STATMode old_mode = mode;
         
-        if (LY >= 144) mode = STATMode.VBLANK;
-        else if (cycle_counter < 80) mode = STATMode.OAM_SEARCH;
-        else if (cycle_counter < 252 || pixels_drawn < 160) mode = STATMode.LCD_TRANSFER;
-        else mode = STATMode.HBLANK;
+        // Only update STAT while LCD is on and has been on for more than one frame
+        if (LCDEnabled) {
+            STATMode old_mode = mode;
 
-        
-        bool hblank_int_operand = (mode == STATMode.HBLANK) && ((_STAT & 0x08) != 0);
-        bool vblank_int_operand = (mode == STATMode.VBLANK) && ((_STAT & 0x10) != 0);
-        bool oam_int_operand    = (mode == STATMode.OAM_SEARCH) && ((_STAT & 0x20) != 0);
-        bool lyc_int_operand    = (LY == LYC) && ((_STAT & 0x40) != 0);
+            if (LCD_startup_frame && !LCD_startup) mode = STATMode.LCD_TRANSFER;
+            else {
+                if (LY >= 144) mode = STATMode.VBLANK;
+                //else if (LCD_startup) mode = cycle_counter < 80 ? STATMode.OAM_SEARCH : STATMode.LCD_TRANSFER;
+                else if (cycle_counter < 80 && !LCD_startup_frame) mode = STATMode.OAM_SEARCH;
+                // LCD transfer mode has variable timing
+                else if (cycle_counter < 252) mode = STATMode.LCD_TRANSFER;
+                else mode = STATMode.HBLANK;
+            }
+            
+            // Pull STAT line
+            bool hblank_int_operand = (mode == STATMode.HBLANK) && ((_STAT & 0x08) != 0);
+            bool vblank_int_operand = (mode == STATMode.VBLANK) && ((_STAT & 0x10) != 0);
+            bool oam_int_operand    = (mode == STATMode.OAM_SEARCH) && ((_STAT & 0x20) != 0);
+            bool lyc_int_operand    = (LY == LYC) && ((_STAT & 0x40) != 0);
 
-        bool current_stat_line = hblank_int_operand || vblank_int_operand || oam_int_operand || lyc_int_operand;
+            bool current_stat_line = hblank_int_operand || vblank_int_operand || oam_int_operand || lyc_int_operand;
 
-        if (!old_stat_line && current_stat_line) {
-            gameboy.RequestInterrupt(CPU.InterruptMask.LCD); 
+            // Fire LCD interrupt if the STAT line has changed
+            if (!old_stat_line && current_stat_line) {
+                if (!LCD_startup_frame) gameboy.RequestInterrupt(CPU.InterruptMask.LCD); 
+            }
+
+            // Store last STAT line
+            old_stat_line = current_stat_line;
+
+            // Entered LCD transfer mode, start BG pixel fetcher
+            if (old_mode != STATMode.LCD_TRANSFER && mode == STATMode.LCD_TRANSFER) {
+                bg_fetcher.Start();
+                pixels_drawn = 0;
+            }
+            
+            //Update STAT
+            UpdateHardwareSTATBits(mode);
         }
 
-        old_stat_line = current_stat_line;
 
-        if (old_mode != STATMode.LCD_TRANSFER && mode == STATMode.LCD_TRANSFER) {
-            bg_fetcher.Start();
-            pixels_drawn = 0;
-        }
-        UpdateHardwareSTATBits(mode);
     }
     
     void OAMLookup() {

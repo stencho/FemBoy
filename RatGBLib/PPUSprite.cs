@@ -1,6 +1,6 @@
 namespace RatGBLib;
 
-class Sprite {
+public class Sprite {
     public ushort address;
     
     public int X;

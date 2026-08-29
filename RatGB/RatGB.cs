@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Xna.Framework;
@@ -83,6 +84,22 @@ public class RatGBGame : Game {
         
         output_render_target = new FullResolutionRenderTarget();
         game_render_target = new FullResolutionRenderTarget();
+
+        string[] args = Environment.GetCommandLineArgs();
+        string rom_name = "";
+        
+        if (args.Length > 1) {
+            bool loaded_rom = false;
+            
+            foreach (string arg in args[1..^0]) {
+                if (File.Exists(arg) && !loaded_rom) {
+                    rom_name = arg;
+                    loaded_rom = true;
+                }                
+            }
+        }
+        
+        if (rom_name.Length > 0) gb.LoadROM(rom_name);
         
         //gb.LoadROM("gbmicrotest/000-write_to_x8000.gb");
         //gb.LoadROM("roms/bully.gb");
@@ -98,6 +115,7 @@ public class RatGBGame : Game {
         //gb.LoadROM("roms/int.gb");
         
         //gb.LoadROM("mooneye-test-suite/acceptance/timer/rapid_toggle.gb");
+        //gb.LoadROM("mooneye-test-suite/acceptance/ppu/lcdon_timing-GS.gb");
         //gb.LoadROM("mooneye-test-suite/emulator-only/mbc1/ram_64kb.gb");
         
         //gb.LoadROM("mooneye-test-suite/acceptance/timer/tma_write_reloading.gb");
@@ -138,23 +156,26 @@ public class RatGBGame : Game {
         gvars.add_change_action("g_tick_rate", () => { update_thread.tick_rate = gvars.get_float("g_tick_rate"); });        
         
         Interface.memory_window.internal_draw_action = () => {
-            for (int i = 0; i < 0x10000; i++) {
-                byte value = gameboy.gameboy.ReadByte((ushort)i);
-            
-                if (i <= 0x3FFF) {
-                    memory_colors[i] = new Color(value, 0, 0);    
-                } else if (i <= 0x7FFF) {
-                    memory_colors[i] = new Color(0, value, 0);    
-                } else if (i <= 0x9FFF) {
-                    memory_colors[i] = new Color(0, 0, value);
+            //if (gb.gameboy.PPU.frame_ready) {
+                for (int i = 0; i < 0x10000; i++) {
+                    byte value = gameboy.gameboy.ReadByte((ushort)i);
 
-                } else if (i == 0xFF00) {
-                    memory_colors[i] = new Color(value, 0, value);
+                    if (i <= 0x3FFF) {
+                        memory_colors[i] = new Color(value, 0, 0);
+                    } else if (i <= 0x7FFF) {
+                        memory_colors[i] = new Color(0, value, 0);
+                    } else if (i <= 0x9FFF) {
+                        memory_colors[i] = new Color(0, 0, value);
 
-                } else memory_colors[i] = new Color(value, value, value);
-            }
-        
-            memory_texture.SetData(memory_colors);
+                    } else if (i == 0xFF00) {
+                        memory_colors[i] = new Color(value, 0, value);
+
+                    } else
+                        memory_colors[i] = new Color(value, value, value);
+                }
+
+                memory_texture.SetData(memory_colors);
+            //}
 
             float ar = Interface.memory_window.client_area_aspect_ratio;
             
@@ -177,10 +198,6 @@ public class RatGBGame : Game {
     }
     
     private int t_cycles = 0;
-
-    protected override void Update(GameTime gameTime) {
-        base.Update(gameTime);
-    }
     
     protected override void Draw(GameTime gameTime) {
         gameboy.Render();

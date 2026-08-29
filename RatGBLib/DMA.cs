@@ -30,18 +30,18 @@ public class DMA {
             return gameboy.cartridge.Read(address);
 
         if (address < 0xE000)
-            return gameboy.ReadByte(address);
+            return gameboy.RAM[address];
 
         if (address < 0xFE00)
-            return gameboy.ReadByte(address);
+            return gameboy.RAM[address];
 
         if (address < 0xFEA0)
-            return gameboy.ReadByte((ushort)(address - 0x2000));
+            return gameboy.RAM[(ushort)(address - 0x2000)];
         
         if (address >= 0xFF00)
-            return gameboy.ReadByte((ushort)(address - 0x2000));
+            return gameboy.RAM[(ushort)(address - 0x2000)];
         
-        return gameboy.ReadByte(address);
+        return gameboy.RAM[address];
     }
     
     

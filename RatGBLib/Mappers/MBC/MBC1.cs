@@ -28,6 +28,7 @@ public class MBC1 : MBCMapper {
     }
     
     public override byte Read(ushort address) {
+
         switch (address) {
             case < 0x4000: {
                 int current_bank = banking_mode == 0 ? 0 : rom_bank_hi << 5;
@@ -35,14 +36,19 @@ public class MBC1 : MBCMapper {
             }
             
             case < 0x8000: {
-                int current_bank = rom_bank_lo | (rom_bank_hi << 5);
+                int current_bank = rom_bank_lo;
+                if (banking_mode == 0)
+                    current_bank |= rom_bank_hi << 5;
+                if ((current_bank & 0x1F) == 0)
+                    current_bank++;
+                
                 if ((current_bank & 0x1F) == 0) current_bank++;
                 return ReadROMBank(current_bank, (address - 0x4000));
             }
 
             case >= 0xA000 and <0xC000: {
                 if (!RAM_Enabled || RAM_size == 0) return 0xFF;
-                return ReadRAMBank(RAM_bank, (ushort)(banking_mode == 0 ? address - 0xA000 : address));
+                return ReadRAMBank(RAM_bank, address);
             }
             
             default: throw new ArgumentOutOfRangeException($"{address:X4}");
@@ -50,6 +56,10 @@ public class MBC1 : MBCMapper {
     }
 
     public override void Write(ushort address, byte value) {
+        if (address == 0xDA0C) {
+            Console.WriteLine("Wrote to DA0C");
+        }
+        
         switch (address) {
             case < 0x2000: 
                 RAM_Enabled = (value & 0x0F) == 0x0A;
