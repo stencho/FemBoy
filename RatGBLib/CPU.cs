@@ -236,7 +236,7 @@ public class CPU {
     public byte ReadByte(ushort address) {
         byte value = 0;
         
-        Tick(3);
+        Tick(4);
         
         // CPU-ONLY ACCESS RESTRICTIONS
         if (gameboy.PPU.LCDEnabled &&
@@ -250,7 +250,7 @@ public class CPU {
         else if (gameboy.DMA.Active && (address < 0xFF00 || address >= 0xFFFE)) value = 0xFF;
         else value = gameboy.ReadByte(address);
         
-        Tick(1);
+        //Tick(1);
         return value;
     } 
 
@@ -301,8 +301,6 @@ public class CPU {
             Tick(4);
             return;
         }
-
-        
         
         INTERRUPT_MASTER_ENABLE = false;
         REGISTERS.IF &= (byte)~(byte)interrupt;
@@ -350,16 +348,6 @@ public class CPU {
             }
         }
         
-        if (ENABLE_INTERRUPT_DELAY > 0) {
-            ENABLE_INTERRUPT_DELAY--;
-            if (ENABLE_INTERRUPT_DELAY == 0) INTERRUPT_MASTER_ENABLE = true;
-        }
-        
-        if (INTERRUPT_MASTER_ENABLE && InterruptPending) {
-            ServiceInterrupt();
-            cycles_since_last_op -= 20;
-            return;
-        }
 
         
         ushort current_PC = REGISTERS.PC;
@@ -1230,8 +1218,8 @@ public class CPU {
             
             case 0xD9: // RETI
                 current_op.store_stack(gameboy, REGISTERS.SP, ref current_op.stack_before);
-                Tick(4);
                 
+                Tick(4);
                 REGISTERS.PC = PopU16(ref REGISTERS.SP);
                 INTERRUPT_MASTER_ENABLE = true;
                 ENABLE_INTERRUPT_DELAY = 0;
@@ -1475,7 +1463,7 @@ public class CPU {
             }
             
             case 0xFB: // EI
-                ENABLE_INTERRUPT_DELAY = 2;
+                ENABLE_INTERRUPT_DELAY = 1;
                 break;
             
             // 0xFC UNUSED
@@ -1494,6 +1482,18 @@ public class CPU {
                 break;
 
             default: throw new Exception($"Unsupported OPCode: {opcode:X} (PC {REGISTERS.PC})");
+        }
+        
+        
+        if (ENABLE_INTERRUPT_DELAY > 0) {
+            ENABLE_INTERRUPT_DELAY--;
+            if (ENABLE_INTERRUPT_DELAY == 0) INTERRUPT_MASTER_ENABLE = true;
+        }
+        
+        if (INTERRUPT_MASTER_ENABLE && InterruptPending) {
+            ServiceInterrupt();
+            cycles_since_last_op -= 20;
+            return;
         }
         
         cycles_since_last_op = gameboy.TotalCycles - last_op_total_cycles;

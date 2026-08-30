@@ -12,7 +12,6 @@ public class Timer {
     
     public Timer(GameBoy gameboy) => this.gameboy = gameboy;
     
-    private ushort divider = 0xABCC;
     public byte DIV => (byte)(divider >> 8);
 
     public byte TIMA = 0x00;
@@ -25,29 +24,25 @@ public class Timer {
     
     public int ReloadDelay => TIMA_reload_delay;
     
+    private ushort divider = 0xABCC;
+    public ushort Divider => divider;
+    
     public void Execute() {
-        if (TIMA_reload_pending) {
-            if (TIMA_reload_delay == 0) {
-                TIMA_reload_pending = false;
-            } else {
-                TIMA_reload_delay--;
-
-                if (TIMA_reload_delay == 1) {
-                    gameboy.RequestInterrupt(CPU.InterruptMask.Timer);
-                }
-
-                if (TIMA_reload_delay == 0) {
-                    TIMA = TMA;
-                    TIMA_reload_pending = false;
-                }
-            }
-        }
-        
         bool old_timer_signal = GetTimerSignal();
         divider++;
         bool timer_signal = GetTimerSignal();
 
         if (old_timer_signal && !timer_signal) IncrementTIMA();
+        
+        if (TIMA_reload_pending) {
+            TIMA_reload_delay--;
+            
+            if (TIMA_reload_delay == 0) {
+                TIMA = TMA;
+                TIMA_reload_pending = false;
+                gameboy.RequestInterrupt(CPU.InterruptMask.Timer);
+            }
+        }
     }
 
     public void CancelPendingTIMAReload(byte value) {
@@ -57,23 +52,14 @@ public class Timer {
     }
     
     void IncrementTIMA() {
-        if (TIMA_reload_pending) {
-            if (TIMA_reload_delay > 0) {
-                TIMA_reload_pending = false;
-                TIMA_reload_delay = 0;
-                TIMA = 0;
-                return;
-            } else {
-                TIMA = TMA;
-                return;
-            }
-        }
-        
         if (TIMA == 0xFF) {
             TIMA = 0x00;
             TIMA_reload_pending = true;
             TIMA_reload_delay = 4;
-        } else TIMA++;
+            return;
+        }
+        
+        TIMA++;
     }
     
     public void ResetDivider() {
@@ -104,3 +90,5 @@ public class Timer {
         return ((divider >> bit) & 1) == 1;
     }
 }
+
+

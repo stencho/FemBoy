@@ -85,6 +85,13 @@ public class RatGBGame : Game {
         output_render_target = new FullResolutionRenderTarget();
         game_render_target = new FullResolutionRenderTarget();
 
+        Window.FileDrop += (s, e) => {
+            if (File.Exists(e.Files[0])) {
+                Console.WriteLine("Loading " + e.Files[0]);
+                gb.LoadROM(e.Files[0]);
+            }
+        };
+        
         string[] args = Environment.GetCommandLineArgs();
         string rom_name = "";
         

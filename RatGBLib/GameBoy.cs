@@ -224,22 +224,17 @@ public class GameBoy {
         if (address == TimerRegisterAddresses.DIV) { timer.ResetDivider(); return; }
 
         if (address == TimerRegisterAddresses.TIMA) { 
-            if (timer.ReloadPending) {
-                if (timer.ReloadDelay <= 1) {
-                    timer.CancelPendingTIMAReload(value);
-                } else {
-                    timer.TIMA = timer.TMA;
-                }
+            if (timer.ReloadPending) { 
+                timer.CancelPendingTIMAReload(value);
             } else {
                 timer.TIMA = value;
             }
-            
             return;
         }
         
         if (address == TimerRegisterAddresses.TMA) {
             timer.TMA = value;
-            if (timer.ReloadPending && timer.ReloadDelay <= 1) timer.TIMA = value;
+            if (timer.ReloadPending) timer.TIMA = value;
             return;
         }
         

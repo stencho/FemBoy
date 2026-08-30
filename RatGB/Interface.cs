@@ -119,9 +119,19 @@ public static class Interface {
         
         return output;
     }
+
+    public static string PrintTimerInfo() {
+        string output = "[Timer]\n";
+
+        output += $"[Divider] {gb.gameboy.timer.Divider} [Reload] {gb.gameboy.timer.ReloadDelay}\n";
+        output += $"[TIMA] {gb.gameboy.timer.TIMA:X2}  [TMA] {gb.gameboy.timer.TMA:X2}\n";
+        output += $"[DIV] {gb.gameboy.timer.DIV:X2} [TAC] {gb.gameboy.timer.TAC:X2}\n";
+        
+        return output;
+    }
     
     public static void DebugInfoToClipboard() {
-        string copy = PrintRegisters() + "\n" + PrintCartridgeInfo() + "\n" +  PrintOPInfo() + "\n";
+        string copy = PrintRegisters() + "\n" + PrintCartridgeInfo() + "\n" + PrintTimerInfo() + "\n" +  PrintOPInfo() + "\n";
         ClipboardService.SetText(copy);
     }
     
@@ -144,6 +154,7 @@ public static class Interface {
                 "[Frames/Ticks] " + Clock.frame_rate + "/" + Clock.tick_rate + "\n\n" + 
                 PrintRegisters() + "\n" + 
                 PrintCartridgeInfo() + "\n" + 
+                PrintTimerInfo() + "\n" + 
                 PrintOPInfo() + "\n" + 
                 $"\n{(gb.Crashed ? " !CRASHED!" : "")} \n", 
                 

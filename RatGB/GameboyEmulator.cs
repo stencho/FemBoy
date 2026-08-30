@@ -96,7 +96,7 @@ public class GameboyEmulator {
         input.Update(gameboy.joypad);
 
         try {
-            while (cycles < GameBoy.CYCLES_PER_FRAME) {
+            while (cycles < GameBoy.CYCLES_PER_FRAME ) {
                 if (reloading) break;
                 cycles += gameboy.Execute();
             }
