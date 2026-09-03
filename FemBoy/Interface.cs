@@ -34,7 +34,7 @@ public static class Interface {
     private static DrawShapesToSurface shape_drawing;
     
     public static Action<DrawShapesToSurface> Draw2DOverCanvas;
-    static void draw_over_canvas_layer() => Draw2DOverCanvas.Invoke(shape_drawing);
+    static void draw_over_game_layer() => Draw2DOverCanvas.Invoke(shape_drawing);
         
     public static Action<DrawShapesToSurface> Draw2DOnTop;
     static void draw_on_top_layer() => Draw2DOnTop?.Invoke(shape_drawing);
@@ -204,7 +204,7 @@ public static class Interface {
         State.graphics_device.SetRenderTarget(render_target.rt2D);
         State.graphics_device.Clear(Color.Transparent);
 
-        draw_over_canvas_layer();
+        draw_over_game_layer();
         UIWindowManager.Manager.render_UIs_to_their_buffers();
         draw_on_top_layer();
     }
