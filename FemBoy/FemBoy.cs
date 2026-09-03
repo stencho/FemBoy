@@ -106,55 +106,6 @@ public class FemBoyGame : Game {
         
         if (rom_name.Length > 0) gb.LoadROM(rom_name);
         
-        //gb.LoadROM("roms/tetris.gb");
-        //gb.LoadROM("gbmicrotest/000-write_to_x8000.gb");
-        //gb.LoadROM("roms/bully.gb");
-        //gb.LoadROM("roms/alley.gb");
-        //gb.LoadROM("roms/tetris.gb");
-        //gb.LoadROM("roms/metroid2.gb");
-        //gb.LoadROM("roms/kirby.gb");
-        //gb.LoadROM("roms/pkmnred.gb");
-        //gb.LoadROM("roms/pkmngold.gbc");
-        //gb.LoadROM("roms/zelda.gb");
-        //gb.LoadROM("roms/sml.gb");
-        //gb.LoadROM("roms/buttontest.gb");
-        //gb.LoadROM("roms/int.gb");
-        
-        //gb.LoadROM("mooneye-test-suite/acceptance/timer/rapid_toggle.gb");
-        //gb.LoadROM("mooneye-test-suite/acceptance/ppu/lcdon_timing-GS.gb");
-        //gb.LoadROM("mooneye-test-suite/emulator-only/mbc1/ram_64kb.gb");
-        
-        //gb.LoadROM("mooneye-test-suite/acceptance/timer/tma_write_reloading.gb");
-        //gb.LoadROM("mooneye-test-suite/acceptance/timer/tima_write_reloading.gb");
-        //gb.LoadROM("mooneye-test-suite/acceptance/timer/div_write.gb");
-        //gb.LoadROM("mooneye-test-suite/acceptance/timer/tima_reload.gb");
-        
-        //gb.LoadROM("mooneye-test-suite/acceptance/push_timing.gb");
-        //gb.LoadROM("mooneye-test-suite/acceptance/pop_timing.gb");
-        //gb.LoadROM("mooneye-test-suite/acceptance/oam_dma/sources-GS.gb");
-        
-        //gb.LoadROM("mooneye-test-suite/acceptance/bits/unused_hwio-GS.gb");
-        
-        //gb.LoadROM("blargg/mem_timing/individual/01-read_timing.gb");
-        
-        //gb.LoadROM("blargg/instr_timing/instr_timing.gb");
-        //gb.LoadROM("blargg/halt_bug.gb");
-        
-        //gb.LoadROM("blargg/cpu_instrs/cpu_instrs.gb");
-        //gb.LoadROM("blargg/cpu_instrs/individual/01-special.gb");
-        //gb.LoadROM("blargg/cpu_instrs/individual/02-interrupts.gb");
-        //gb.LoadROM("blargg/cpu_instrs/individual/03-op sp,hl.gb");
-        //gb.LoadROM("blargg/cpu_instrs/individual/04-op r,imm.gb");
-        //gb.LoadROM("blargg/cpu_instrs/individual/05-op rp.gb");
-        //gb.LoadROM("blargg/cpu_instrs/individual/06-ld r,r.gb");
-        //gb.LoadROM("blargg/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb");
-        //gb.LoadROM("blargg/cpu_instrs/individual/08-misc instrs.gb");
-        //gb.LoadROM("blargg/cpu_instrs/individual/09-op r,r.gb");
-        //gb.LoadROM("blargg/cpu_instrs/individual/10-bit ops.gb");
-        //gb.LoadROM("blargg/cpu_instrs/individual/11-op a,(hl).gb");
-        
-        //gb.LoadROM("hb.gb");
-        
         update_thread = new Clock.UpdateThread("Update", UpdatethreadMethod);
         State.LoadFinished(update_thread);
         
@@ -163,7 +114,6 @@ public class FemBoyGame : Game {
 
         
         Interface.memory_window.internal_draw_action = () => {
-            //if (gb.gameboy.PPU.frame_ready) {
             for (int i = 0; i < 0x10000; i++) {
                 byte value = gameboy.gameboy.ReadMemory((ushort)i);
 
@@ -191,7 +141,6 @@ public class FemBoyGame : Game {
             }
 
             memory_texture.SetData(memory_colors);
-            //}
 
             float ar = Interface.memory_window.client_area_aspect_ratio;
             
@@ -279,7 +228,6 @@ public class FemBoyGame : Game {
                 new Vector2i(State.resolution.X, (State.resolution.Y * ar)  / gb_ar)
             );
         }
-
         
         Interface.Render();
         
