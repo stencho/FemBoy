@@ -1,7 +1,7 @@
 using System.Net;
 using FemBoy;
 
-namespace RatGBLib;
+namespace FemBoy;
 
 public static class SerialRegisterAddresses {
     public const ushort SB = 0xFF01; 

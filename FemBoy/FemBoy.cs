@@ -14,7 +14,6 @@ using Raven.Engine.Controls;
 using Raven.Engine.Scene3D;
 using Raven.Graphics.Drawing2D;
 using Raven.UI;
-using WaterTrans.GlyphLoader;
 
 namespace FemBoy;
 
@@ -73,7 +72,7 @@ public class FemBoyGame : Game {
     protected override void LoadContent() {
         State.Load(Content);
 
-        ConsoleInputRunner.using_list += "using FemBoyLib;\nusing FemBoy;\nusing static FemBoy.RatGBGame;"; 
+        ConsoleInputRunner.using_list += "using FemBoy;\nusing static FemBoy.FemBoyGame;"; 
         
         gameboy = new GameboyEmulator();
         

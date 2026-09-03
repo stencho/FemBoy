@@ -1,6 +1,5 @@
 ﻿using System.Diagnostics;
 using FemBoy.Memory;
-using RatGBLib;
 
 namespace FemBoy;
 
