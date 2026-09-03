@@ -13,6 +13,11 @@ namespace FemBoy;
 
 public class GameboyEmulator {
     public GameBoy gameboy;
+
+    public CPU CPU => gameboy.CPU;
+    public PPU PPU => gameboy.PPU;
+    public IMemory RAM => gameboy.RAM;
+    public Cartridge Cartridge => gameboy.Cartridge;
     
     public Texture2D texture;
     
@@ -79,6 +84,9 @@ public class GameboyEmulator {
         
     }
 
+    public void WriteMemory(ushort address, byte value) => gameboy.WriteMemory(address, value);
+    public byte ReadMemory(ushort address) => gameboy.ReadMemory(address);
+    
     public void ToggleExecution() {
         _execution_paused = !_execution_paused;
     }
