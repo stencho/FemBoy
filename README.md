@@ -5,4 +5,8 @@ FemBoy was originally written to exercise/exorcise my game engine, Raven. It use
 
 Also originally written with no regard for timing accuracy, but there's something clearly wrong with my brain, so.
 
-Currently only supports dot-matrix GameBoy emulation. Fairly capable of running a lot of titles which are not heavily reliant on PPU mode 3 timing, especially with sprites involved. No sound support yet. 
+Currently only supports dot-matrix GameBoy emulation. Fairly capable of running a lot of titles which are not heavily reliant on PPU mode 3 timing, especially with sprites involved. No sound support yet.
+
+Arrow keys for D-pad, X and Z for A and B, return and backslash/pipe for start/select. Currently no controller or remapping support.
+
+No easy way to select a ROM yet, either start with a ROM as a command line argument, drag/drop a ROM onto the window, or press tilde to open the console and use "gb.LoadROM("rom_path_here")". The console is a full-on C# REPL.
