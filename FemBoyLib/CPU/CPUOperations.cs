@@ -71,11 +71,11 @@ public class CPUOperations {
     internal Action[] PopReg16;
     internal Action[] PushReg16;
     
-    internal Action[] RetUnconditional;
-    internal Action[] RetI;
+    internal Action[] RETUnconditional;
+    internal Action[] RETI;
     
-    internal Action[] LDnnA;
     internal Action[] LDAnn;
+    internal Action[] LDnnA;
 
     internal Action[] CALLTaken;
 
@@ -592,7 +592,7 @@ public class CPUOperations {
             }
         ];
         
-        RetUnconditional = [
+        RETUnconditional = [
             //M2
             () => { }, 
             () => { },
@@ -619,7 +619,7 @@ public class CPUOperations {
             }
         ];
         
-        RetI = [
+        RETI = [
             //M2
             () => { }, 
             () => { },
@@ -648,7 +648,7 @@ public class CPUOperations {
             }
         ];
         
-        LDnnA = [
+        LDAnn = [
             //M2
             () => { }, () => { },
             () => {
@@ -676,7 +676,7 @@ public class CPUOperations {
             }
         ];
 
-        LDAnn = [
+        LDnnA = [
             //M2
             () => { }, () => { },
             () => {

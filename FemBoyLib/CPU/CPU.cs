@@ -147,41 +147,44 @@ public class CPU {
     private uint cycles_since_last_op = 0;
 
     private OpcodeInfo current_op;
-
     
     private StreamWriter? trace;
 
-    public void StartTrace(string path)
-    {
+    public void StartTrace(string path) {
         trace?.Dispose();
         trace = new StreamWriter(path, false);
         trace.AutoFlush = false;
     }
 
-    public void StopTrace()
-    {
+    public void StopTrace() {
         trace?.Flush();
         trace?.Dispose();
         trace = null;
     }
     
     public void Tick() {
+        // If there isn't an interrupt pending, and we're halted
+        // do nothing this t-cycle
         if (_halted) {
             if (!InterruptPending) return;
             _halted = false;
         }
 
-        if (t_cycle % 4 == 0 && !executing_opcode && interrupt_master_enable && InterruptPending) {
+        // if we're at a 0-cycle, there's an interrupt pending, and we haven't got an instruction ready
+        // to execute, then handle the interrupt instead
+        if (t_cycle == 0 && !executing_opcode && interrupt_master_enable && InterruptPending) {
             t_cycle = 0;
             Operations.current_operation = Operations.InterruptServicePipeline;
             executing_opcode = true;
         }
         
+        // not currently executing an instruction, so fetch the next one
         if (!executing_opcode) {
             OpcodeFetch();
             return;
         }
         
+        // execute the next t-cycle of the current instruction
         ExecuteInstruction();
     }
 
@@ -191,6 +194,7 @@ public class CPU {
             case 1: break; // Open read gates
             case 2:        // Sample opcode
                 current_opcode = ReadMemory(Registers.PC);
+                
                 if (_halt_bug) _halt_bug = false;
                 else Registers.PC++;
                 
@@ -213,7 +217,10 @@ public class CPU {
             Operations.current_operation[t_cycle++]();
             return;
         }
-
+        
+        // Mostly exists to make sure that every instruction has a FinishOperation() at its
+        // final t-cycle, so we don't end up either spinning a finished operation, or otherwise
+        // trying to run past the end of an operation
         Debugger.Break();
     }
 
@@ -487,10 +494,10 @@ public class CPU {
                     
                 } else {
                     if (p == 0) { // RET
-                        Operations.current_operation = Operations.RetUnconditional;
+                        Operations.current_operation = Operations.RETUnconditional;
 
                     } else if (p == 1) { // RETI
-                        Operations.current_operation = Operations.RetI;
+                        Operations.current_operation = Operations.RETI;
                         
                     } else if (p == 2) { // JP HL
                         Registers.PC = Registers.HL;
@@ -510,7 +517,7 @@ public class CPU {
                     Operations.current_operation = Operations.LDMemFromReg;
                     
                 } else if (y == 5) { // LD (nn), A
-                    Operations.current_operation = Operations.LDAnn;
+                    Operations.current_operation = Operations.LDnnA;
 
                 } else if (y == 6) { // LD A, ($FF00 + C)
                     Operations.hl_mutation = CPUOperations.HLMutation.None;
@@ -519,7 +526,7 @@ public class CPU {
                     Operations.current_operation = Operations.LDRegFromMem;
                     
                 } else if (y == 7) { // LD A, (nn)
-                    Operations.current_operation = Operations.LDnnA;
+                    Operations.current_operation = Operations.LDAnn;
                 } else {
                     throw new Exception($"INVALID OPCODE: {opcode:X2} @ {Registers.PC:X4}");
                 }
