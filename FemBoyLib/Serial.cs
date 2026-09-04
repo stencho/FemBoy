@@ -38,9 +38,7 @@ public class Serial {
             if ((_SC & 0x80) != 0) {
                 if ((_SC & 0x01) != 0) {
                     StartTransfer();
-                } else {
-                    HandleExternalClockDisconnect();
-                }
+                } 
             }
         }
     }
@@ -74,12 +72,7 @@ public class Serial {
         cycle_accumulator = 0;
         
         if (connected_device is NullDevice) {
-            transfer_active = false;
-            
-            _SC &= 0x7F; // Instantly drop the active transfer bit flag
-            SB = 0xFF;   // Lines float to high voltage
-            
-            gameboy.CPU.RequestInterrupt(InterruptMask.Serial); 
+            HandleExternalClockDisconnect();
         }
     }
     
