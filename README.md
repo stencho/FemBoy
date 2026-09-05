@@ -3,7 +3,7 @@
 
 Originally written to exercise/exorcise my game engine, Raven. It uses Raven's input handling, 2D rendering, UI, window managing, configuration, and timing systems. As such, it requires RavenEngine to build.
 
-Distant goal is to add a modding framework with persistent tile/sprite editing and script-based code and memory insertion/replacement
+Distant goal is to add a modding framework with persistent tile/sprite editing, and script-based code/memory insertion/replacement
 
 Arrow keys for D-pad, X and Z for A and B, return and backslash/pipe for start/select. Currently no controller or remapping support.
 
@@ -18,15 +18,16 @@ No easy way to select a ROM yet, either start with a ROM as a command line argum
 - [ ] Split-screen Link Cable Multiplayer
 - [x] Timer
 - [ ] Audio
-- [ ] RTC (implemented but only returns 0xFF)
-- [ ] Rumble
+- [ ] MBC3 RTC (implemented but only returns 0xFF)
+- [ ] MBC5 Rumble
+- [ ] MBC7 Accelerometer
 
 #### Mappers
 - [x] MBC1
 - [ ] MBC2
 - [x] MBC3
 - [x] MBC5
-- [ ] MBC7 + Accelerometer
+- [ ] MBC7
 - [ ] M161 Multi-cart
 - [ ] MMM01 Multi-cart
 - [ ] HuC1
