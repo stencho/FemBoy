@@ -33,8 +33,7 @@ public class OAMSearch {
     }
     
     public void Tick() {
-        //if (visible_sprites.Count == 10) return;
-        if ((PPU.dot % 2) == 0) return;
+        if ((PPU.dot % 2) != 0) return;
         
         ushort address = (ushort)(0xFE00 + index * 4);
         int y = gameboy.RAM.Read(address) - 16;

@@ -50,9 +50,32 @@ public class BGFetcher {
 
         pixel_y = bg_y & 7;
         
-        pixels_popped = 0;
-        stall = 0;
         discard_pixels = PPU.SCX % 8;
+        
+        pixels_popped = 0;
+        
+        // 4 cycle FIFO startup delay
+        stall = 4;
+        
+        current_fetch_state = FetchState.Tile;
+    }
+
+    
+    public void StartWindow() {
+        FIFO.Clear();
+        window_active = true;
+
+        int window_y = window_line_counter;
+        dot_counter = 0;
+        
+        tile_x = 0;
+        tile_y = window_y >> 3;
+        
+        pixel_y = window_y & 7;
+        
+        discard_pixels = 0;
+        
+        stall = 4;
         
         current_fetch_state = FetchState.Tile;
     }
@@ -66,25 +89,6 @@ public class BGFetcher {
         FIFO.Clear();
     }
     
-    public void StartWindow() {
-        FIFO.Clear();
-        window_active = true;
-
-        //int window_y = ppu.LY - ppu.WY;
-        int window_y = window_line_counter;
-        dot_counter = 0;
-        
-        tile_x = 0;
-        tile_y = window_y >> 3;
-        
-        pixel_y = window_y & 7;
-        
-        discard_pixels = 0;
-        stall = 6;
-        
-        current_fetch_state = FetchState.Tile;
-    }
-
     public void Tick() {
         if (stall > 0) {
             stall--;
@@ -92,7 +96,12 @@ public class BGFetcher {
         }
         
         if (PPU.dot % 2 != 0) return;
-        
+
+        if (!window_active && PPU.WindowEnabled && PPU.LY >= PPU.WY && pixels_popped >= (PPU.WX - 7)) {
+            StartWindow();
+            return;
+        }
+
         switch (current_fetch_state) {
             case FetchState.Tile: FetchTileID(); current_fetch_state = FetchState.Low; break;
             case FetchState.Low: FetchTileAddressLow(); current_fetch_state = FetchState.High; break;
@@ -139,7 +148,7 @@ public class BGFetcher {
         }
     }
 
-    public bool TryPopPixel(out byte color) {
+    public bool TickAndTryPopPixel(out byte color) {
         color = 0xFF;
         
         if (FIFO.Count == 0) return false;
@@ -151,8 +160,7 @@ public class BGFetcher {
             return false;
         }
 
-        //if (FIFO.Count > 0)
-            pixels_popped++;
+        pixels_popped++;
             
         return true;
     }

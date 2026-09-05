@@ -122,6 +122,7 @@ public class PPU {
         if (!LCD_ON) return;
         old_mode = mode;
         
+        
         if (LY == 153) {
             if (dot == 4) {
                 dot = 0;
@@ -169,12 +170,9 @@ public class PPU {
             }
         } else if (mode == PPUMode.LCD_TRANSFER_3) {
             if (!bg_fetcher.TransferComplete) {
-                
-                if (!bg_fetcher.window_active && WindowEnabled && LY >= WY && pixels_drawn >= (WX - 7)) 
-                    bg_fetcher.StartWindow();
-                
                 bg_fetcher.Tick();
-                if (bg_fetcher.TryPopPixel(out byte color)) {
+                
+                if (bg_fetcher.TickAndTryPopPixel(out byte color)) {
                     if (pixels_drawn < 160 && LY < 144) {
                         int x = pixels_drawn;
                         int y = LY;
@@ -204,9 +202,10 @@ public class PPU {
             }
         }
         
-        dot++;
         UpdateHardwareSTATBits(mode);
         HandleSTAT();
+        
+        dot++;
     }
 
     public void UpdateHardwareSTATBits(PPUMode mode) {
