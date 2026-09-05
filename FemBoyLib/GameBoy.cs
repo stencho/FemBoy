@@ -37,6 +37,7 @@ public class GameBoy {
         PPU = new PPU(this);
         DMA = new DMA(this);
         RAM = new DotMatrixRAM(this);
+        
         Timer = new Timer(this);
         serial = new Serial(this);
         joypad = new Joypad(this);
@@ -44,55 +45,16 @@ public class GameBoy {
         
         CPU.Registers.A = 0x01;
         CPU.Registers.F = 0xB0;
-        
         CPU.Registers.B = 0x00;
         CPU.Registers.C = 0x13;
-        
-        CPU.Registers.D = 0x00; // 0x13
+        CPU.Registers.D = 0x13;
         CPU.Registers.E = 0xD8;
-        
         CPU.Registers.H = 0x01;
         CPU.Registers.L = 0x4D;
         
-        WriteMemory(0xFF10, 0x80); // NR10
-        WriteMemory(0xFF11, 0xBF); // NR11
-        WriteMemory(0xFF12, 0xF3); // NR12
-        WriteMemory(0xFF14, 0xBF); // NR14
-        
-        WriteMemory(0xFF16, 0x3F); // NR21
-        WriteMemory(0xFF17, 0x00); // NR22
-        WriteMemory(0xFF19, 0xBF); // NR24
-        
-        WriteMemory(0xFF1A, 0x7F); // NR30
-        WriteMemory(0xFF1B, 0xFF); // NR31
-        WriteMemory(0xFF1C, 0x9F); // NR32
-        WriteMemory(0xFF1E, 0xBF); // NR34
-        
-        WriteMemory(0xFF20, 0xFF); // NR41
-        WriteMemory(0xFF21, 0x00); // NR42
-        WriteMemory(0xFF22, 0x00); // NR43
-        WriteMemory(0xFF23, 0xBF); // NR44
-        
-        WriteMemory(0xFF24, 0x77); // NR50
-        WriteMemory(0xFF25, 0xF3); // NR51
-        WriteMemory(0xFF26, 0xF1); // NR52 (0x85 for Game Boy Color)
-
-        PPU.LCDC = 0x91;
-        PPU.STAT = 0x85;
-        PPU.LY = 0x90;
-        PPU.LYC = 0x00;
-
         Timer.TIMA = 0x00;
         Timer.TMA = 0x00;
         Timer.TAC = 0x00;
-        
-        WriteMemory(0xFF47, 0xFC); // BGP (Background Palette)
-        WriteMemory(0xFF48, 0xFF); // OBP0
-        WriteMemory(0xFF49, 0xFF); // OBP1
-        WriteMemory(0xFF4A, 0x00); // WY
-        WriteMemory(0xFF4B, 0x00); // WX
-        
-        WriteMemory(0xFFFF, 0x00); // IE (Interrupt Enable)
     }
     
     public void LoadROM(string filename) {

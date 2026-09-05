@@ -53,14 +53,14 @@ public class PPU {
     
     public byte SCX = 0x00;
     public byte SCY = 0x00;
-
-    public byte LCDC = 0x00;
     
     public byte BGP = 0xFC;
     public byte OBP0 = 0xFF;
     public byte OBP1 = 0xFF;
     public byte WY = 0x00;
     public byte WX = 0x00;
+    
+    public byte LCDC = 0x91;
     
     public bool LCDEnabled => (LCDC & 0x80) != 0;
     public bool WindowTileMap => (LCDC & 0x40) != 0;
@@ -71,7 +71,7 @@ public class PPU {
     public bool OBJEnabled => (LCDC & 0x02) != 0;
     public bool BGAndWindowDisplayEnabled => (LCDC & 0x01) != 0;
 
-    private byte _STAT = 0x80;
+    private byte _STAT = 0x85;
     public byte STAT {
         get => _STAT;
         set => _STAT = (byte)((value & 0xF8) | (_STAT & 0x07) | 0x80); //protect lower hardware-controlled bits
@@ -121,7 +121,6 @@ public class PPU {
     public void Tick() {
         if (!LCD_ON) return;
         old_mode = mode;
-        
         
         if (LY == 153) {
             if (dot == 4) {
@@ -188,6 +187,7 @@ public class PPU {
                 }
                 
             } else {
+                //Console.WriteLine($"LY {LY} DOT {dot-80}");
                 mode = PPUMode.HBLANK_0;
             }
         }
