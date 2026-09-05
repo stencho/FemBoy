@@ -501,11 +501,14 @@ public class CPUOperations {
         
         AddSPImm8 = [
             //M2
+            () => { },() => { },() => { },() => { },
+            
+            //M3
             () => { }, () => { },
             () => { buffer = CPU.ReadMemory(Registers.PC++); }, 
             () => { },
 
-            //M3
+            //M4
             () => { }, () => { }, () => { },
             () => {
                 ushort oldSp = Registers.SP;
