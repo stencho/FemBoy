@@ -100,6 +100,7 @@ public class GameboyEmulator {
     }
     
     public int total_frames = 0;
+    private bool allow_emulator_to_crash = false;
     
     public void Update() {
         if (CRASHED) return;
@@ -110,23 +111,32 @@ public class GameboyEmulator {
         
         input.Update(gameboy.joypad);
 
-        try {
-            while (cycles < 70224 && !gameboy.CPU.wants_pause) {
-                if (reloading) break;
-                gameboy.Tick();
-                cycles++;
-            }
+        if (allow_emulator_to_crash) {
+            Tick();
             
-        } catch (Exception ex) {
-            CRASHED = true;
-            Console.WriteLine(ex.Message);
+        } else {
+            try {
+                Tick();
+
+            } catch (Exception ex) {
+                CRASHED = true;
+                Console.WriteLine(ex.Message);
+            }
         }
-        
+
         cycles = 0;
         total_frames++;
         
     }
 
+    void Tick() {
+        while (cycles < 70224 && !gameboy.CPU.wants_pause) {
+            if (reloading) break;
+            gameboy.Tick();
+            cycles++;
+        }
+    }
+    
     public void Render() {
         if (CRASHED) return;
         if (gameboy == null || input == null) return;
