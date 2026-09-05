@@ -65,6 +65,7 @@ public static class Interface {
             $"[Registers]\n" +
             $"[PC] {gb.gameboy.CPU.Registers.PC:X4} [SP] {gb.gameboy.CPU.Registers.SP:X4}\n" +
             $"[IE] {gb.gameboy.CPU.Registers.IE:X2}   [IF] {gb.gameboy.CPU.Registers.IF:X2}\n" +
+            $"[IME] {gb.gameboy.CPU.interrupt_master_enable:X2]}\n" +
             /*$"[IE] {gb.gameboy.CPU.REGISTERS.IE:X2}   [IF] {gb.gameboy.CPU.REGISTERS.IF:X2}\n" +
             $"[A] {gb.gameboy.CPU.REGISTERS.A:X2}    [F] {gb.gameboy.CPU.REGISTERS.F:X2}\n" +
             $"[B] {gb.gameboy.CPU.REGISTERS.B:X2}    [C] {gb.gameboy.CPU.REGISTERS.C:X2}\n" +
@@ -87,7 +88,9 @@ public static class Interface {
         if (gb.gameboy == null || gb.gameboy.Cartridge == null) return "";
         string output = "[Cartridge]\n";
         output += $"[Filename] {gb.ROMName}\n";
+        output += $"[Title]    {gb.Cartridge.Title}\n";
         output += $"[CRC32]    {gb.gameboy.Cartridge.ROMCRC32:X8}\n";
+        output += $"[Mode]     {gb.gameboy.Cartridge.CartridgeMode}\n";
         output += $"[Type]     0x{gb.gameboy.Cartridge.cartridge_type:X2}\n";
         output += $"[ROM code] 0x{gb.gameboy.Cartridge.ROM_size_code:X2}\n";
         output += $"[RAM code] 0x{gb.gameboy.Cartridge.RAM_size_code:X2}\n";
@@ -95,9 +98,9 @@ public static class Interface {
         output += $"[Mapper]   {gb.gameboy.Cartridge.Mapper.Name}\n";
         
         if (gb.gameboy.Cartridge.HasRAM) 
-        output += $"[RAM]      yes ({gb.gameboy.Cartridge.GetRAMSize() / 1024}k)\n";
+            output += $"[RAM]      yes ({gb.gameboy.Cartridge.GetRAMSize() / 1024}k)\n";
         else 
-        output += $"[RAM]      no\n";
+            output += $"[RAM]      no\n";
 
         output += $"[Battery]  {(gb.gameboy.Cartridge.HasBattery ? "yes" : "no")}\n";
         output += $"[RTC]      {(gb.gameboy.Cartridge.HasRTC ? "yes" : "no")}\n";
@@ -165,7 +168,7 @@ public static class Interface {
                 PrintRegisters() + "\n" + 
                 PrintCartridgeInfo() + "\n" + 
                 PrintPPUInfo() + "\n" + 
-                //PrintOPInfo() + "\n" + 
+                PrintOPInfo() + "\n" + 
                 $"\n{(gb.Crashed ? " !CRASHED!" : "")} \n", 
                 
                 (Vector2i.One * 5), Color.White);

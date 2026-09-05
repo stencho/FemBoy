@@ -1,19 +1,27 @@
 using System;
 using System.IO;
 using System.Runtime.Intrinsics.Arm;
+using System.Text;
 using FemBoy.Mappers;
 using FemBoy.Mappers.MBC;
 using Crc32 = System.IO.Hashing.Crc32;
 
 namespace FemBoy;
 
-enum CartridgeMode {
-    Color, DotMatrix
+public enum CartridgeMode {
+    ColorOnly, ColorEnhanced, DotMatrix
 }
 
 public class Cartridge {
     public byte[] ROM;
     public uint ROMCRC32;
+    
+    public string Title = "";
+    public string Manufacturer = "";
+
+    private byte CGB_Enhancement_flag = 0x00;
+
+    public CartridgeMode CartridgeMode = CartridgeMode.DotMatrix;
     
     public byte cartridge_type => ROM[0x147];
     public byte ROM_size_code => ROM[0x148];
@@ -30,6 +38,9 @@ public class Cartridge {
 
     private bool _has_RTC = false;
     public bool HasRTC => _has_RTC;
+    
+    private bool _has_rumble = false;
+    public bool HasRumble => _has_rumble;
 
     internal GameBoy gameboy;
 
@@ -45,7 +56,22 @@ public class Cartridge {
             ROM = new byte[file.Length];
             file.ReadExactly(ROM, 0, ROM.Length);
         }
+        
+        if (gameboy.Model == GameBoyType.DotMatrix) {
+            for (int i = 0; i < 16; i++) {
+                if (!Ascii.IsValid((char)ROM[0x0134 + i]) || ROM[0x0134 + i] == 0x00) break;
+                Title += (char)ROM[0x0134 + i];
+            }
 
+            if (ROM[0x143] == 0xC0) {
+                CartridgeMode = CartridgeMode.ColorOnly;
+            } else if (ROM[0x143] == 0x80) {
+                CartridgeMode = CartridgeMode.ColorEnhanced;
+            }
+        } else {
+            
+        }
+        
         ROMCRC32 = Crc32.HashToUInt32(ROM.AsSpan());
         
         switch (cartridge_type) {
@@ -77,7 +103,11 @@ public class Cartridge {
                 break;
             
             case 0x19: case 0x1A: case 0x1B: case 0x1C: case 0x1D: case 0x1E:
-                mapper = new MBC5(this);
+                _has_RAM =     cartridge_type is 0x1A or 0x1B or 0x1D or 0x1E;
+                _has_battery = cartridge_type is 0x1B or 0x1E;
+                _has_rumble =  cartridge_type is 0x1C or 0x1D or 0x1E;
+                
+                mapper = new MBC5(this, _has_battery);
                 break;
 /*
             case 0x20:

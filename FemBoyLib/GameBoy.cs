@@ -3,7 +3,7 @@ using FemBoy.Memory;
 
 namespace FemBoy;
 
-enum GameBoyType {
+public enum GameBoyType {
     Color, DotMatrix
 }
 
@@ -14,7 +14,7 @@ public class GameBoy {
     public const int VBLANK_SCANLINE = 144;
     public const int DOTS_PER_SCANLINE = 456;
     
-    private GameBoyType type = GameBoyType.DotMatrix;
+    public GameBoyType Model = GameBoyType.DotMatrix;
 
     private const ushort SpeedSwitchMemoryAddress = 0xFF4D;
     
@@ -121,7 +121,7 @@ public class GameBoy {
         PPU.Tick();
         //APU.Tick();
         
-        if (type == GameBoyType.Color && double_speed_mode) {
+        if (Model == GameBoyType.Color && double_speed_mode) {
             CPU.Tick();
             CPU.Tick();
         } else {
