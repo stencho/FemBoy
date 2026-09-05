@@ -75,7 +75,7 @@ public class BGFetcher {
         
         discard_pixels = 0;
         
-        stall = 4;
+        stall = 6;
         
         current_fetch_state = FetchState.Tile;
     }
@@ -95,12 +95,13 @@ public class BGFetcher {
             return;
         }
         
-        if (PPU.dot % 2 != 0) return;
-
         if (!window_active && PPU.WindowEnabled && PPU.LY >= PPU.WY && pixels_popped >= (PPU.WX - 7)) {
             StartWindow();
             return;
         }
+        
+        if (PPU.dot % 2 != 0) return;
+
 
         switch (current_fetch_state) {
             case FetchState.Tile: FetchTileID(); current_fetch_state = FetchState.Low; break;
