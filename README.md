@@ -5,7 +5,7 @@ FemBoy was originally written to exercise/exorcise my game engine, Raven. It use
 
 Also originally written with no regard for timing accuracy, but there's something clearly wrong with my brain, so here we are.
 
-Currently only supports dot-matrix GameBoy emulation. MBC1 fully implemented, MBC3 mostly implemented, but RTC will always return 0xFF for all values. This probably breaks games. Saves supported. Fairly capable of running a lot of titles which are not heavily reliant on PPU mode 3 timing, especially with sprites involved. No sound support yet.
+Currently only supports dot-matrix GameBoy emulation. MBC1 fully implemented, MBC3 mostly implemented, but RTC will always return 0xFF for all values. This probably breaks games. MBC5 implemented, but no rumble yet. Saves supported. Fairly capable of running a lot of titles which are not heavily reliant on PPU mode 3 timing (due to a lack of sprite fetcher stalling/actual sprite FIFO in general). No sound support yet.
 
 Arrow keys for D-pad, X and Z for A and B, return and backslash/pipe for start/select. Currently no controller or remapping support.
 
