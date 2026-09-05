@@ -493,7 +493,6 @@ public class CPUOperations {
             //M3
             () => { }, () => { }, () => { },
             () => { 
-                
                 byte a = (byte)Registers.Getters[(int)TargetRegister.A]();
                 CPU.WriteMemory(pointer, a);
                 CPU.FinishOperation();
@@ -564,7 +563,6 @@ public class CPUOperations {
             () => { BufferByteHigh(CPU.ReadMemory(Registers.SP++)); },
             () => {
                 CPU.Registers.Setters[target_register](buffer);
-                //if (target_register == TargetRegister.AF) CPU.wants_pause = true; 
                 CPU.FinishOperation();
             }
         ];

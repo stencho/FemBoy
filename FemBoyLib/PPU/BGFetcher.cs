@@ -27,7 +27,6 @@ public class BGFetcher {
     public BGFetcher(GameBoy gameboy) {
         this.gameboy = gameboy;
     }
-
     
     private byte window_line_counter;
     public byte WindowLineCounter => window_line_counter;

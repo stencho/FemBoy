@@ -163,8 +163,7 @@ public class CPU {
     }
     
     public void Tick() {
-        // If there isn't an interrupt pending, and we're halted
-        // do nothing this t-cycle
+        // If there isn't an interrupt pending, and we're halted, do nothing this t-cycle
         if (_halted) {
             if (!InterruptPending) return;
             _halted = false;
