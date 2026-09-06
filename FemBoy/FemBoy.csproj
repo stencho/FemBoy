@@ -33,4 +33,7 @@
       <ProjectReference Include="..\..\ProjectRaven\Raven\Raven.csproj" />
       <ProjectReference Include="..\FemBoyLib\FemBoyLib.csproj" />
     </ItemGroup>
+    <ItemGroup>
+      <Folder Include="Content\Fonts\" />
+    </ItemGroup>
 </Project>

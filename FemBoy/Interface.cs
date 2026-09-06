@@ -25,6 +25,8 @@ public static class Interface {
     
     static UIPanel tool_panel;
     
+    public static UIMenuPanel main_menu;
+    
     public static UIWindow memory_window;
     private static Texture2D memory_texture;
     private static Color[] memory_colors = new Color[256 * 256];
@@ -197,7 +199,20 @@ public static class Interface {
         
         memory_window.allow_resize = true;
         
+        main_menu = new UIMenuPanel(Vector2i.Zero, "04b11",
+            new MenuPanelItem("Test", () => { }),
+            new MenuPanelItem("Exit", () => { })
+        );
+        
+        main_menu.change_text("MENU");
+
+        main_menu.DrawHeader += (header_size) => {
+            Draw2D.text_centered("04b11", "FemBoy", (header_size / 2), UIColors.Foreground);
+        };
+
+
         //State.UI.add_window(menu_strip);
+        State.UI.add_panel_dialog(main_menu, true);
         State.UI.add_window(memory_window);
         
         memory_window.hide();

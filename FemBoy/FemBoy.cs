@@ -29,10 +29,15 @@ public class FemBoyGame : Game {
     
     private Texture2D memory_texture;
     private Color[] memory_colors = new Color[256 * 256];
+
+    private bool already_paused_before_opening_menu = false;
     
     internal static (string bind, object[] bind_data)[]
         bind_list = [
-            ("toggle_memory_window", [Keys.F1]),
+            ("shift", [Keys.LeftShift, Keys.RightShift]),
+            ("ctrl",  [Keys.LeftControl, Keys.RightControl]),
+            ("toggle_memory_window", [Keys.M]),
+            ("toggle_menu", [Keys.Escape, XInputDigital.Guide]),
         ];
 
     internal static (string bind, object[] bind_data)[]
@@ -42,7 +47,8 @@ public class FemBoyGame : Game {
             ("pause_execution", [Keys.P]),
             ("step_execution", [Keys.S]),
         ];
-    public static BindWatcher ui_binds;
+    
+    public static BindWatcher global_binds;
     public static BindWatcher emulator_binds;
     
     public FemBoyGame() {
@@ -62,8 +68,8 @@ public class FemBoyGame : Game {
         State.Initialize(this, Content, _graphics, Window);
         base.Initialize();
         
-        ui_binds = new BindWatcher(bind_list);
-        ui_binds.cares_about_UI_focus = false;
+        global_binds = new BindWatcher(bind_list);
+        global_binds.cares_about_UI_focus = false;
 
         emulator_binds = new BindWatcher(emu_bind_list);
         emulator_binds.cares_about_UI_focus = true;
@@ -109,9 +115,22 @@ public class FemBoyGame : Game {
         update_thread = new Clock.UpdateThread("Update", UpdatethreadMethod);
         State.LoadFinished(update_thread);
         
+        gvars.set("g_tick_rate", 59.73f);
         update_thread.tick_rate = gvars.get_float("g_tick_rate");
         gvars.add_change_action("g_tick_rate", () => { update_thread.tick_rate = gvars.get_float("g_tick_rate"); });
 
+        State.resolution_changed += () => {
+            
+        };
+        
+        Interface.main_menu.on_show += () => {
+            already_paused_before_opening_menu = gb.ExecutionPaused;
+            gb.PauseExecution();
+        };
+        Interface.main_menu.on_hide += () => {
+            if (!already_paused_before_opening_menu) 
+                gb.ResumeExecution();
+        };
         
         Interface.memory_window.internal_draw_action = () => {
             for (int i = 0; i < 0x10000; i++) {
@@ -170,15 +189,19 @@ public class FemBoyGame : Game {
         gameboy.Render();
         
         State.UpdateGraphics(gameTime);
-        ui_binds.Update();
+        global_binds.Update();
         emulator_binds.Update();
 
         
         if (mouse_pos != MouseWatcher.Position) Interface.MouseHidden = false;
         mouse_pos = MouseWatcher.Position;
 
-        if (ui_binds.just_pressed("toggle_memory_window")) {
+        if (global_binds.just_pressed("toggle_memory_window") && global_binds.pressed("shift")) {
             State.UI.toggle_window(Interface.memory_window);
+        }
+        if (global_binds.just_pressed("toggle_menu")) {
+            Interface.main_menu.size = new Vector2i(State.resolution.X * 0.5f, State.resolution.Y * 0.8f);
+            State.UI.toggle_window(Interface.main_menu);
         }
         
         if (emulator_binds.just_pressed("copy_debug_info")) {
@@ -196,10 +219,6 @@ public class FemBoyGame : Game {
         }
         if (emulator_binds.held("step_execution")) {
             gb.StepExecution();
-        }
-        
-        if (State.engine_binds.double_tapped("exit")) {
-            Exit();
         }
         
         State.Render();
