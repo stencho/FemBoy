@@ -9,14 +9,14 @@ namespace FemBoy;
 public class GBInput {
     internal static (string bind, object[] bind_data)[]
         bind_list = [
-            ("up", [Keys.Up]),
-            ("down", [Keys.Down]),
-            ("left", [Keys.Left]),
-            ("right", [Keys.Right]),
-            ("a", [Keys.X]),
-            ("b", [Keys.Z]),
-            ("start", [Keys.Enter]),
-            ("select", [Keys.OemPipe]),
+            ("up", [Keys.Up, XInputDigital.DPadUp, XInputDigital.LeftStickUp]),
+            ("down", [Keys.Down, XInputDigital.DPadDown, XInputDigital.LeftStickDown]),
+            ("left", [Keys.Left, XInputDigital.DPadLeft, XInputDigital.LeftStickLeft]),
+            ("right", [Keys.Right, XInputDigital.DPadRight, XInputDigital.LeftStickRight]),
+            ("a", [Keys.X, XInputDigital.A]),
+            ("b", [Keys.Z, XInputDigital.X]),
+            ("start", [Keys.Enter, XInputDigital.Start]),
+            ("select", [Keys.OemPipe, XInputDigital.Back]),
         ];
 
     private BindWatcher binds;

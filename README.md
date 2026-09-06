@@ -17,6 +17,7 @@ No easy way to select a ROM yet, either start with a ROM as a command line argum
 - [x] Serial
 - [ ] Split-screen Link Cable Multiplayer
 - [x] Timer
+- [x] Save RAM
 - [ ] Audio
 - [ ] MBC3 RTC (implemented but only returns 0xFF)
 - [ ] MBC5 Rumble
@@ -33,13 +34,12 @@ No easy way to select a ROM yet, either start with a ROM as a command line argum
 - [ ] HuC1
 - [ ] HuC3
 
-#### Emulator features
+#### Emulator features (consider this my TODO)
 - [ ] ROM Folder selection and ROM list
 - [ ] Memory Viewer + Editor (current memory viewer is very simplistic)
 - [ ] Tile Viewer + Persistent Tile Editor
 - [ ] Custom DMG Palettes
 - [ ] Input Remapping
-- [ ] Controller Support (Not currently implemented in Raven)
 - [ ] Save States
 - [ ] Fast Forward
 - [ ] Rewind (maybe?)
