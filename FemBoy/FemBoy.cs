@@ -208,7 +208,7 @@ public class FemBoyGame : Game {
             State.UI.toggle_window(State.UI.console);
         }
         
-        if (global_binds.just_pressed("toggle_memory_window") && global_binds.pressed("shift")) {
+        if (global_binds.just_pressed("toggle_memory_window") && global_binds.pressed("ctrl")) {
             State.UI.toggle_window(Interface.memory_window);
         }
         if (emulator_binds.just_pressed("show_menu") && !menu_open) {

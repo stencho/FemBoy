@@ -36,7 +36,7 @@ No easy way to select a ROM yet, either start with a ROM as a command line argum
 - Save States
 - Save RAM management/backups/selection
 - Split-screen Link Cable Multiplayer
-- Memory Viewer + Editor (current memory viewer is very simplistic, though still useful. Shift+M to display)
+- Memory Viewer + Editor (current memory viewer is very simplistic, though still useful. Ctrl+M to display)
 - Tile Viewer + Persistent Tile Editor
 - Custom DMG Palettes
 - Fast Forward
