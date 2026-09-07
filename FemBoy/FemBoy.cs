@@ -1,4 +1,6 @@
-﻿using System;
+﻿global using BindList = (string bind, object[] bind_data)[];
+
+using System;
 using System.IO;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -8,6 +10,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using MonoGame.Framework.Utilities;
 using FemBoy;
+using FemBoy.UI;
 using Raven.Console;
 using Raven.Engine;
 using Raven.Engine.Controls;
@@ -31,21 +34,22 @@ public class FemBoyGame : Game {
     private Color[] memory_colors = new Color[256 * 256];
 
     private bool already_paused_before_opening_menu = false;
+    private bool menu_open = false;
     
-    internal static (string bind, object[] bind_data)[]
+    internal static BindList
         bind_list = [
             ("shift", [Keys.LeftShift, Keys.RightShift]),
             ("ctrl",  [Keys.LeftControl, Keys.RightControl]),
             ("toggle_memory_window", [Keys.M]),
-            ("toggle_menu", [Keys.Escape, XInputDigital.Guide]),
         ];
 
-    internal static (string bind, object[] bind_data)[]
+    internal static BindList
         emu_bind_list = [
             ("copy_debug_info", [Keys.Insert]),
             ("reload_rom", [Keys.R]),
             ("pause_execution", [Keys.P]),
             ("step_execution", [Keys.S]),
+            ("show_menu", [Keys.Escape, XInputDigital.Guide]),
         ];
     
     public static BindWatcher global_binds;
@@ -69,10 +73,10 @@ public class FemBoyGame : Game {
         base.Initialize();
         
         global_binds = new BindWatcher(bind_list);
-        global_binds.cares_about_UI_focus = false;
+        global_binds.cares_about_UI_focus = BindWatcher.UIFocusConsideration.DoesntCare;
 
         emulator_binds = new BindWatcher(emu_bind_list);
-        emulator_binds.cares_about_UI_focus = true;
+        emulator_binds.cares_about_UI_focus = BindWatcher.UIFocusConsideration.NeedsNoFocus;
     }
 
     protected override void LoadContent() {
@@ -82,7 +86,7 @@ public class FemBoyGame : Game {
         
         gameboy = new GameboyEmulator();
         
-        Interface.Load();
+        Interface.Load(this);
         
         memory_texture = new Texture2D(GraphicsDevice, 256, 256, false, SurfaceFormat.Color);
         
@@ -124,12 +128,17 @@ public class FemBoyGame : Game {
         };
         
         Interface.main_menu.on_show += () => {
-            already_paused_before_opening_menu = gb.ExecutionPaused;
-            gb.PauseExecution();
+            if (!menu_open) {
+                menu_open = true;
+                already_paused_before_opening_menu = gb.ExecutionPaused;
+                gb.PauseExecution();
+            }
         };
         Interface.main_menu.on_hide += () => {
-            if (!already_paused_before_opening_menu) 
-                gb.ResumeExecution();
+            if (!UIMenuPanel.any_menus_visible) {
+                menu_open = false;
+                if (!already_paused_before_opening_menu) gb.ResumeExecution();
+            }
         };
         
         Interface.memory_window.internal_draw_action = () => {
@@ -191,17 +200,20 @@ public class FemBoyGame : Game {
         State.UpdateGraphics(gameTime);
         global_binds.Update();
         emulator_binds.Update();
-
         
         if (mouse_pos != MouseWatcher.Position) Interface.MouseHidden = false;
         mouse_pos = MouseWatcher.Position;
 
+        if (State.engine_binds.just_pressed("toggle_console")) {
+            State.UI.toggle_window(State.UI.console);
+        }
+        
         if (global_binds.just_pressed("toggle_memory_window") && global_binds.pressed("shift")) {
             State.UI.toggle_window(Interface.memory_window);
         }
-        if (global_binds.just_pressed("toggle_menu")) {
-            Interface.main_menu.size = new Vector2i(State.resolution.X * 0.5f, State.resolution.Y * 0.8f);
-            State.UI.toggle_window(Interface.main_menu);
+        if (emulator_binds.just_pressed("show_menu") && !menu_open) {
+            Interface.main_menu.show();
+            menu_open = true;
         }
         
         if (emulator_binds.just_pressed("copy_debug_info")) {
@@ -264,6 +276,10 @@ public class FemBoyGame : Game {
         Clock.FrameRateUpdate(gameTime.ElapsedGameTime.TotalMilliseconds);
         
         base.Draw(gameTime);
+    }
+
+    public void Exit() {
+        base.Exit();
     }
     
     protected override void UnloadContent() {

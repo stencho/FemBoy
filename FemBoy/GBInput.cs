@@ -25,7 +25,7 @@ public class GBInput {
         this.gameboy = gameboy;
         
         binds = new BindWatcher(bind_list);
-        binds.cares_about_UI_focus = true;
+        binds.cares_about_UI_focus = BindWatcher.UIFocusConsideration.NeedsNoFocus;
     }
     
     public void Update(Joypad joypad) {

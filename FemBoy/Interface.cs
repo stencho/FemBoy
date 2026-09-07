@@ -5,6 +5,7 @@ using System.Text;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using FemBoy;
+using FemBoy.UI;
 using Microsoft.Xna.Framework.Input;
 using Raven.Engine;
 using Raven.Engine.Controls;
@@ -26,6 +27,7 @@ public static class Interface {
     static UIPanel tool_panel;
     
     public static UIMenuPanel main_menu;
+    public static UIMenuPanel test_submenu;
     
     public static UIWindow memory_window;
     private static Texture2D memory_texture;
@@ -150,7 +152,8 @@ public static class Interface {
     
     public static bool MouseHidden = false;
     
-    public static void Load() {
+
+    public static void Load(Game game) {
         UIGraphics.Load();
 
         render_target = new FullResolutionRenderTarget();
@@ -199,20 +202,23 @@ public static class Interface {
         
         memory_window.allow_resize = true;
         
-        main_menu = new UIMenuPanel(Vector2i.Zero, "04b11",
-            new MenuPanelItem("Test", () => { }),
-            new MenuPanelItem("Exit", () => { })
+        main_menu = new UIMenuPanel(null,
+            new MenuPanelItem("Resume", () => { main_menu.up_menu(); }),
+            new MenuPanelItem("Save States", () => { }),
+            new MenuPanelItem("ROMs", () => {  }),
+            new MenuPanelItem("Settings", () => { main_menu.show_submenu(test_submenu); }),
+            new MenuPanelItem("Exit", () => { game.Exit(); })
         );
-        
-        main_menu.change_text("MENU");
+
+        test_submenu = new UIMenuPanel(main_menu,
+            new MenuPanelItem("Do Nothing", () => { }),
+            new MenuPanelItem("Back", () => { test_submenu.up_menu(); })
+        );
 
         main_menu.DrawHeader += (header_size) => {
             Draw2D.text_centered("04b11", "FemBoy", (header_size / 2), UIColors.Foreground);
         };
 
-
-        //State.UI.add_window(menu_strip);
-        State.UI.add_panel_dialog(main_menu, true);
         State.UI.add_window(memory_window);
         
         memory_window.hide();
