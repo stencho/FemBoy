@@ -1,12 +1,9 @@
-# FemBoy
-### An attempt at a cycle-accurate GameBoy emulator
+# FemBoy: A maximalist GameBoy emulator
 
 Originally written to exercise/exorcise my game engine, Raven. It uses Raven's input handling, 2D rendering, UI, window managing, configuration, and timing systems. As such, it requires RavenEngine to build.
 
-Distant goal is to add a modding framework with persistent tile/sprite editing, and script-based code/memory insertion/replacement
-
-Arrow keys for D-pad, X and Z for A and B, return and backslash/pipe for start/select. Currently no controller or remapping support.
-
+The immediate goal is to make a couch-friendly emulator, with built in split-screen link cable multiplayer. A very distant goal, and the reason I chose this project, is a game modding framework, to allow a user to write scripts to add co-op play or new levels to classic titles. 
+ 
 No easy way to select a ROM yet, either start with a ROM as a command line argument, drag/drop a ROM onto the window, or press tilde to open the console and use "gb.LoadROM("rom_path_here")". The console is a full-on C# REPL.
 
 ### Features
@@ -15,7 +12,6 @@ No easy way to select a ROM yet, either start with a ROM as a command line argum
 - [x] DMG
 - [ ] CGB
 - [x] Serial
-- [ ] Split-screen Link Cable Multiplayer
 - [x] Timer
 - [x] Save RAM
 - [ ] Audio
@@ -34,15 +30,17 @@ No easy way to select a ROM yet, either start with a ROM as a command line argum
 - [ ] HuC1
 - [ ] HuC3
 
-#### Emulator features (consider this my TODO)
-- [ ] ROM Folder selection and ROM list
-- [ ] Memory Viewer + Editor (current memory viewer is very simplistic)
-- [ ] Tile Viewer + Persistent Tile Editor
-- [ ] Custom DMG Palettes
-- [ ] Input Remapping
-- [ ] Save States
-- [ ] Fast Forward
-- [ ] Rewind (maybe?)
+#### Emulator goals (consider this my TODO)
+- Input Remapping
+- ROM Folder selection and ROM list
+- Save States
+- Save RAM management/backups/selection
+- Split-screen Link Cable Multiplayer
+- Memory Viewer + Editor (current memory viewer is very simplistic, though still useful. Shift+M to display)
+- Tile Viewer + Persistent Tile Editor
+- Custom DMG Palettes
+- Fast Forward
+- Rewind (maybe?)
 
 ### Tests
 
