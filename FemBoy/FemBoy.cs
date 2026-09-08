@@ -122,23 +122,10 @@ public class FemBoyGame : Game {
         gvars.set("g_tick_rate", 59.73f);
         update_thread.tick_rate = gvars.get_float("g_tick_rate");
         gvars.add_change_action("g_tick_rate", () => { update_thread.tick_rate = gvars.get_float("g_tick_rate"); });
-
-        State.resolution_changed += () => {
-            
-        };
         
-        Interface.main_menu.on_show += () => {
-            if (!menu_open) {
-                menu_open = true;
-                already_paused_before_opening_menu = gb.ExecutionPaused;
-                gb.PauseExecution();
-            }
-        };
-        Interface.main_menu.on_hide += () => {
-            if (!UIMenuPanel.any_menus_visible) {
-                menu_open = false;
-                if (!already_paused_before_opening_menu) gb.ResumeExecution();
-            }
+        Interface.menu_system.on_hide += () => {
+            menu_open = false;
+            if (!already_paused_before_opening_menu) gb.ResumeExecution();
         };
         
         Interface.memory_window.internal_draw_action = () => {
@@ -211,8 +198,11 @@ public class FemBoyGame : Game {
         if (global_binds.just_pressed("toggle_memory_window") && global_binds.pressed("ctrl")) {
             State.UI.toggle_window(Interface.memory_window);
         }
+        
         if (emulator_binds.just_pressed("show_menu") && !menu_open) {
-            Interface.main_menu.show();
+            already_paused_before_opening_menu = gb.ExecutionPaused;
+            gb.PauseExecution();
+            Interface.menu_system.show_menu();
             menu_open = true;
         }
         

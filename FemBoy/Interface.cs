@@ -25,9 +25,8 @@ public static class Interface {
     static MenuStrip menu_strip;
     
     static UIPanel tool_panel;
-    
-    public static UIMenuPanel main_menu;
-    public static UIMenuPanel test_submenu;
+
+    public static MenuSystem menu_system;
     
     public static UIWindow memory_window;
     private static Texture2D memory_texture;
@@ -202,23 +201,22 @@ public static class Interface {
         
         memory_window.allow_resize = true;
         
-        main_menu = new UIMenuPanel(null,
-            new MenuPanelItem("Resume", () => { main_menu.up_menu(); }),
-            new MenuPanelItem("Save States", () => { }),
-            new MenuPanelItem("ROMs", () => {  }),
-            new MenuPanelItem("Settings", () => { main_menu.show_submenu(test_submenu); }),
-            new MenuPanelItem("Exit", () => { game.Exit(); })
-        );
-
-        test_submenu = new UIMenuPanel(main_menu,
-            new MenuPanelItem("Do Nothing", () => { }),
-            new MenuPanelItem("Back", () => { test_submenu.up_menu(); })
-        );
-
-        main_menu.DrawHeader += (header_size) => {
-            Draw2D.text_centered("04b11", "FemBoy", (header_size / 2), UIColors.Foreground);
-        };
-
+        menu_system = new MenuSystem("main");
+        
+        menu_system.add_menu_page("main", new VerticalMenu(
+            new VerticalMenuItem("Resume", menu_system.close_menu),
+            new VerticalMenuItem("Save States", () => { }),
+            new VerticalMenuItem("ROMs", () => {  }),
+            new VerticalMenuItem("Settings", () => { menu_system.open_submenu("settings"); }),
+            new VerticalMenuItem("Exit", game.Exit)
+            ));
+        
+        menu_system.add_menu_page("settings", new VerticalMenu(
+            new VerticalMenuSlider("Volume", 0, 100, 50),
+            new VerticalMenuItem("ROM Folder", () => { }),
+            new VerticalMenuItem("Back", () => { menu_system.go_up_submenu(); })
+            ));
+        
         State.UI.add_window(memory_window);
         
         memory_window.hide();
