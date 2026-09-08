@@ -138,11 +138,10 @@ public class CPU {
     public void RequestInterrupt(InterruptMask interrupt) {
         Registers.IF |= (byte)interrupt;
     }
-    
 
     public ConcurrentQueue<OpcodeInfo> LastNOpcodes = new();
     private int track_n_opcodes = 50;
-    public bool track_opcodes = true;
+    public bool track_opcodes = false;
     private uint last_op_total_cycles = 0;
     private uint cycles_since_last_op = 0;
 
@@ -227,7 +226,7 @@ public class CPU {
         Operations.current_operation = null;
         executing_opcode = false;
 
-        current_op.cycles = (uint)(t_cycle+4);
+        if (track_opcodes) current_op.cycles = (uint)(t_cycle+4);
         
         ops++;
         t_cycle = 0;
@@ -252,11 +251,11 @@ public class CPU {
         int p = y >> 1;
         int q = y % 2;
         
-        current_op = new OpcodeInfo(current_opcode);
-        current_op.PC = (ushort)(Registers.PC - 1);
-        current_op.SP_before = Registers.SP;
-                
         if (track_opcodes) {
+            current_op = new OpcodeInfo(current_opcode);
+            current_op.PC = (ushort)(Registers.PC - 1);
+            current_op.SP_before = Registers.SP;
+                
             LastNOpcodes.Enqueue(current_op);
             if (LastNOpcodes.Count > track_n_opcodes) LastNOpcodes.TryDequeue(out _);
         }
