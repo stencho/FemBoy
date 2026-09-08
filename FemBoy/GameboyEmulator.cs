@@ -60,6 +60,11 @@ public class GameboyEmulator {
     
     public void LoadROM(string filename) {
         Interlocked.Exchange(ref reloading, true);
+        if (gameboy != null) {
+            gameboy = null;
+            GC.Collect();
+        }
+        
         gameboy = new GameBoy();
         
         //gameboy.CPU.StartTrace("trace.txt");
@@ -105,12 +110,13 @@ public class GameboyEmulator {
     public void Update() {
         if (CRASHED) return;
         if (gameboy == null || input == null) return;
+        
+        input.Update(gameboy.joypad);
+        
         if (ExecutionPaused && run_single_execution_step) {
             run_single_execution_step = false;    
         } else if (ExecutionPaused) return;
         
-        input.Update(gameboy.joypad);
-
         if (allow_emulator_to_crash) {
             Tick();
             
