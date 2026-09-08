@@ -9,17 +9,17 @@ namespace FemBoy;
 public class GBInput {
     internal static (string bind, object[] bind_data)[]
         bind_list = [
-            ("up", [Keys.Up, XInputDigital.DPadUp, XInputDigital.LeftStickUp]),
-            ("down", [Keys.Down, XInputDigital.DPadDown, XInputDigital.LeftStickDown]),
-            ("left", [Keys.Left, XInputDigital.DPadLeft, XInputDigital.LeftStickLeft]),
-            ("right", [Keys.Right, XInputDigital.DPadRight, XInputDigital.LeftStickRight]),
+            ("up", [Keys.Up, XInputDigital.DPadUp, XInputAnalog.LeftStickUp]),
+            ("down", [Keys.Down, XInputDigital.DPadDown, XInputAnalog.LeftStickDown]),
+            ("left", [Keys.Left, XInputDigital.DPadLeft, XInputAnalog.LeftStickLeft]),
+            ("right", [Keys.Right, XInputDigital.DPadRight, XInputAnalog.LeftStickRight]),
             ("a", [Keys.X, XInputDigital.A]),
             ("b", [Keys.Z, XInputDigital.X]),
             ("start", [Keys.Enter, XInputDigital.Start]),
             ("select", [Keys.OemPipe, XInputDigital.Back]),
         ];
 
-    private BindWatcher binds;
+    public BindWatcher binds;
     private GameBoy gameboy;
     public GBInput(GameBoy gameboy) {
         this.gameboy = gameboy;
