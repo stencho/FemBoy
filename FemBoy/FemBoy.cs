@@ -248,7 +248,7 @@ public class FemBoyGame : Game {
 
         var ar = (float)State.resolution.X / (float)State.resolution.Y;
         float gb_ar = 160f / 144f;
-        if (State.resolution.X >= State.resolution.Y) {
+        if (ar >= gb_ar) {
             Draw2D.image(gameboy.texture, 
                 new Vector2i((State.resolution.X / 2f) - (((State.resolution.X / ar) * gb_ar) / 2f), 0),
                 new Vector2i((State.resolution.X / ar) * gb_ar, State.resolution.Y)
