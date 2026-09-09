@@ -33,7 +33,9 @@ public class OAMSearch {
     }
     
     public void Tick() {
-        if ((PPU.dot % 2) != 0) return;
+        // CHANGING DOT PHASE HERE *WILL* BREAK SPRITE FETCHES
+        // DON'T FUCKING ASK ME WHY, IT DOESN'T REALLY MAKE A LOT OF SENSE
+        if ((PPU.dot % 2) == 0) return;
         
         ushort address = (ushort)(0xFE00 + index * 4);
         int y = gameboy.RAM.Read(address) - 16;

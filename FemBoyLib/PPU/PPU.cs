@@ -25,6 +25,15 @@ public enum PPUMode : byte {
     LCD_TRANSFER_3 = 3
 }
 
+public enum FetchState { Tile, Low, High, Push }
+
+public struct SpritePixel {
+    public byte Color;
+    public bool Priority;
+    public bool Palette;
+    public int OAMIndex;
+}
+
 public class PPU {
     public int dot = 0;
     public int pixels_drawn = 0;
@@ -37,13 +46,21 @@ public class PPU {
     private GameBoy gameboy;
     private CPU CPU => gameboy.CPU;
 
-    public BGFetcher bg_fetcher;
+    public BGFetcher BGFetcher;
+    public SpriteFetcher SpriteFetcher;
     public OAMSearch oam_search;
+
+    private ILCD LCD = new DotMatrixLCD();
+    
+    
     
     public PPU(GameBoy gameboy) {
         this.gameboy = gameboy;
-        bg_fetcher = new(gameboy);
+        
+        BGFetcher = new(gameboy);
+        SpriteFetcher = new(gameboy);
         oam_search = new OAMSearch(gameboy);
+        
         Array.Fill(frame_buffer_offscreen, (byte)0x00);
         Array.Copy(frame_buffer_offscreen, frame_buffer, frame_buffer.Length);
     }
@@ -94,7 +111,7 @@ public class PPU {
         LCD_ON = true;
         lcd_startup_scanline = true;
 
-        bg_fetcher.Reset();
+        BGFetcher.Reset();
         oam_search.Reset();
         
         mode = PPUMode.HBLANK_0;
@@ -106,7 +123,7 @@ public class PPU {
         
         LCD_ON = false;
 
-        bg_fetcher.Reset();
+        BGFetcher.Reset();
         oam_search.Reset();
         
         mode = PPUMode.HBLANK_0;
@@ -132,7 +149,7 @@ public class PPU {
             dot = 0;
             LY++;
 
-            if (bg_fetcher.window_active) bg_fetcher.IncrementWindowLineCounter();
+            if (BGFetcher.window_active) BGFetcher.IncrementWindowLineCounter();
             
             if (last_line_was_153) {
                 LY = 0;
@@ -142,8 +159,8 @@ public class PPU {
                 
             } else if (LY == 144) {
                 mode = PPUMode.VBLANK_1;
-                bg_fetcher.ResetWindowLineCounter();
-                bg_fetcher.window_active = false;
+                BGFetcher.ResetWindowLineCounter();
+                BGFetcher.window_active = false;
                 
                 CPU.RequestInterrupt(InterruptMask.VBlank);
 
@@ -168,25 +185,44 @@ public class PPU {
                 if (dot == 80) mode = PPUMode.LCD_TRANSFER_3;
             }
         } else if (mode == PPUMode.LCD_TRANSFER_3) {
-            if (!bg_fetcher.TransferComplete) {
-                bg_fetcher.Tick();
-                
-                if (bg_fetcher.TickAndTryPopPixel(out byte color)) {
-                    if (pixels_drawn < 160 && LY < 144) {
-                        int x = pixels_drawn;
-                        int y = LY;
+            if (pixels_drawn < 160) {
 
-                        if (!BGAndWindowDisplayEnabled) color = 0;
+                if (SpriteFetcher.Active) 
+                    SpriteFetcher.Tick();
 
-                        byte shade = (byte)((BGP >> (color * 2)) & 0x03);
-                        frame_buffer_offscreen[x + y * 160] = shade;
+                if (!SpriteFetcher.Active) {
+                   BGFetcher.Tick();
+                   Sprite? sprite = SpriteFetcher.GetSpriteAtX(pixels_drawn);
+                   if (sprite != null) {
+                       SpriteFetcher.Start(sprite);
+                       BGFetcher.current_fetch_state = FetchState.Tile;
+                   }
+                } 
 
-                        DrawSpritePixel(color);
-                        pixels_drawn++;
-                    }
+                if (!SpriteFetcher.Active) {
+                   if (BGFetcher.TryPopPixel(out byte bg_color)) {
+                       if (pixels_drawn < 160 && LY < 144) {
+                           int x = pixels_drawn;
+                           int y = LY;
+
+                           if (!BGAndWindowDisplayEnabled) bg_color = 0;
+
+                           byte shade = (byte)((BGP >> (bg_color * 2)) & 0x03);
+
+                           if (OBJEnabled && SpriteFetcher.TryPopPixel(out SpritePixel? sp) && sp.Value.Color != 0) {
+                               byte palette = sp.Value.Palette ? OBP1 : OBP0;
+                               if (!(sp.Value.Priority && bg_color != 0))
+                                   shade = (byte)((palette >> (sp.Value.Color * 2)) & 0x03);
+                           }
+
+                           frame_buffer_offscreen[x + y * 160] = shade;
+                           pixels_drawn++;
+                       }
+                   }
                 }
                 
             } else {
+                SpriteFetcher.ClearFIFO();
                 //Console.WriteLine($"LY {LY} DOT {dot-80}");
                 mode = PPUMode.HBLANK_0;
             }
@@ -197,7 +233,7 @@ public class PPU {
                 case PPUMode.OAM_SEARCH_2: oam_search.Start(LY); break;
                 case PPUMode.LCD_TRANSFER_3: 
                     pixels_drawn = 0;
-                    bg_fetcher.Start();
+                    BGFetcher.Start();
                     break;
             }
         }
@@ -233,60 +269,6 @@ public class PPU {
         old_stat_line = current_stat_line;
     }
     
-    bool DrawSpritePixel(byte background_color) {
-        if (!OBJEnabled) return false;
-
-        Sprite? final_sprite = null;
-        byte final_color = 0;
-        int final_x = int.MaxValue;
-        int final_oam = int.MaxValue;
-        
-        for (var index = 0; index < oam_search.visible_sprites.Count; index++) {
-            Sprite sprite = oam_search.visible_sprites[index];
-            
-            int sprite_pixel_x = pixels_drawn - sprite.X;
-            int sprite_pixel_y = LY - sprite.Y;
-            
-            if (sprite_pixel_x < 0 || sprite_pixel_x >= 8) continue;
-
-            if (sprite.FlipX) sprite_pixel_x = 7 - sprite_pixel_x;
-            if (sprite.FlipY) sprite_pixel_y = SpriteHeight - 1 - sprite_pixel_y;
-
-            byte tile = sprite.tile;
-            if (SpriteHeight == 16) tile &= 0xFE;
-                
-            ushort tile_address = (ushort)(0x8000 + tile * 16 + sprite_pixel_y * 2);
-            
-            byte lo = gameboy.ReadMemory(tile_address);
-            byte hi = gameboy.ReadMemory((ushort)(tile_address + 1));
-
-            int bit = 7 - sprite_pixel_x;
-            byte color = (byte)((((hi >> bit) & 1) << 1) | ((lo >> bit) & 1));
-
-            if (color == 0) continue;
-            
-            if (final_sprite == null 
-                || sprite.X < final_x 
-                || (sprite.X == final_sprite.X && index < final_oam)) {
-                final_sprite = sprite;
-                final_x = sprite.X;
-                final_oam = index;
-                final_color = color;
-            }
-        }
-
-        if (final_sprite == null) return false;
-        if (final_color == 0) return false;
-        if (final_sprite.BGPriority && background_color != 0) return false;
-        
-        byte palette = final_sprite.Palette1 ? OBP1 : OBP0;
-        byte shade = (byte)((palette >> (final_color * 2)) & 0x03);
-
-        frame_buffer_offscreen[pixels_drawn + LY * 160] = shade;
-        
-        return true;
-    }
-
 }
 
 

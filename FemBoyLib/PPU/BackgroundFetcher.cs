@@ -1,9 +1,9 @@
 namespace FemBoy;
 
-public enum FetchState { Tile, Low, High, Push }
 
 public class BGFetcher {
     public FetchState current_fetch_state = FetchState.Tile;
+    
     public Queue<byte> FIFO =  new Queue<byte>();
     
     private GameBoy gameboy;
@@ -21,7 +21,7 @@ public class BGFetcher {
     private int pixel_y;
 
     private int discard_pixels = 0;
-    private int stall = 0;
+    public int stall = 0;
     public bool window_active;
     
     public BGFetcher(GameBoy gameboy) {
@@ -102,7 +102,6 @@ public class BGFetcher {
         
         if (PPU.dot % 2 != 0) return;
 
-
         switch (current_fetch_state) {
             case FetchState.Tile: FetchTileID(); current_fetch_state = FetchState.Low; break;
             case FetchState.Low: FetchTileAddressLow(); current_fetch_state = FetchState.High; break;
@@ -113,6 +112,8 @@ public class BGFetcher {
                 current_fetch_state = FetchState.Tile;
                 break;
         }
+
+        //stall = 1;
     }
 
     void FetchTileID() {
@@ -149,7 +150,7 @@ public class BGFetcher {
         }
     }
 
-    public bool TickAndTryPopPixel(out byte color) {
+    public bool TryPopPixel(out byte color) {
         color = 0xFF;
         
         if (FIFO.Count == 0) return false;

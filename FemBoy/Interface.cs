@@ -140,7 +140,7 @@ public static class Interface {
         output += $"[LCDEnabled] {gb.gameboy.PPU.LCDEnabled}\n";
         output += $"[STAT] {gb.gameboy.PPU.STAT:X2} {gb.gameboy.PPU.STAT:B8}\n";
         output += $"[Dot] {gb.gameboy.PPU.dot}\n";
-        output += $"[FIFO Count] {gb.gameboy.PPU.bg_fetcher.FIFO.Count}\n";
+        output += $"[FIFO Count] {gb.gameboy.PPU.BGFetcher.FIFO.Count}\n";
         output += $"[LY] {gb.gameboy.PPU.LY}\n";
         output += $"[LYC] {gb.gameboy.PPU.LYC}\n";
         output += $"[Sprites]\n";

@@ -135,7 +135,7 @@ public class GameboyEmulator {
     }
 
     void Tick() {
-        while (cycles < 70224 && !gameboy.CPU.wants_pause) {
+        while (cycles < 70224 && gameboy != null && !gameboy.CPU.wants_pause && !reloading) {
             if (reloading) break;
             gameboy.Tick();
             cycles++;
