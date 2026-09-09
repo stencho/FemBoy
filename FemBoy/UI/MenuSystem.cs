@@ -37,10 +37,10 @@ public interface IMenuPage {
 public class MenuSystem : UIPanel {
     public BindWatcher menu_binds;
     BindList menu_bind_list = [
-        ("menu_up", [Keys.Up, XInputDigital.DPadUp]),
-        ("menu_down", [Keys.Down, XInputDigital.DPadDown]),
-        ("menu_left", [Keys.Left, XInputDigital.DPadLeft]),
-        ("menu_right", [Keys.Right, XInputDigital.DPadRight]),
+        ("menu_up", [Keys.Up, XInputDigital.DPadUp, XInputAnalog.LeftStickUp]),
+        ("menu_down", [Keys.Down, XInputDigital.DPadDown, XInputAnalog.LeftStickDown]),
+        ("menu_left", [Keys.Left, XInputDigital.DPadLeft, XInputAnalog.LeftStickLeft]),
+        ("menu_right", [Keys.Right, XInputDigital.DPadRight, XInputAnalog.LeftStickRight]),
         
         ("menu_select", [Keys.Enter, Keys.Space, XInputDigital.A]),
         ("menu_back", [Keys.Back, Keys.Escape, XInputDigital.B]),
@@ -156,7 +156,10 @@ public class MenuSystem : UIPanel {
         
         if (menu_binds.just_pressed("menu_select")) current_menu_page.confirm_selection();
         if (menu_binds.just_pressed("menu_back")) current_menu_page.cancel_selection();
+        
+        if (menu_binds.held_repeat("menu_up") ) current_menu_page.move_selection_up();
+        if (menu_binds.held_repeat("menu_down") ) current_menu_page.move_selection_down();
+        if (menu_binds.held_repeat("menu_left") ) current_menu_page.move_selection_left();
+        if (menu_binds.held_repeat("menu_right") ) current_menu_page.move_selection_right();
     }
-
-    
 }
