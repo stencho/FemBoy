@@ -45,8 +45,10 @@ public class VerticalMenuSlider : VerticalMenuItem {
     public int Step { get; set; } = 1;
 
     public int Range => Maximum - Minimum;
+
+    public Action<float>? ValueChanged;
     
-    public VerticalMenuSlider(string text, int min, int max, int value, int step) : base(text, null) {
+    public VerticalMenuSlider(string text, int min, int max, int value, int step, Action<float> value_changed = null) : base(text, null) {
         Minimum = min;
         Maximum = max;
         Step = step;
@@ -57,6 +59,8 @@ public class VerticalMenuSlider : VerticalMenuItem {
             float position = (value - Minimum) / (float)Range;
             value_f = position;
         }
+
+        ValueChanged = value_changed;
     }
 
     public override void draw(VerticalMenu parent, bool selected, Vector2i top_left, Vector2i bottom_right) {
@@ -85,12 +89,15 @@ public class VerticalMenuSlider : VerticalMenuItem {
         float s = Step / (float)Range;
         value_f -= s;
         if (value_f < 0f) value_f = 0f;
+        
+        ValueChanged?.Invoke(value_f);
     }
 
     public override void pressed_right() {
         float s = Step / (float)Range;
         value_f += s;
         if (value_f > 1f) value_f = 1f;
+        ValueChanged?.Invoke(value_f);
     }
 }
 

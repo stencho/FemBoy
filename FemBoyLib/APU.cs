@@ -28,10 +28,15 @@ public static class AudioRegisterAddresses {
     public const ushort NR52 = 0xFF26;
 }
 
-public class Audio {
+public class APU {
     private GameBoy gameboy;
+    public APU(GameBoy gameboy) => this.gameboy = gameboy;
 
-    public Audio(GameBoy gameboy) => this.gameboy = gameboy;
+    public float volume = 1.0f;
+
+    public void Tick() {
+        
+    }
     
     // Channel 1
     private byte _NR10 = 0x80;

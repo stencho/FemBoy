@@ -26,7 +26,7 @@ public class GameBoy {
     public DMA DMA;
     public Serial serial;
     public Timer Timer;
-    public Audio APU;
+    public APU APU;
     
     public Joypad joypad;
     
@@ -41,7 +41,7 @@ public class GameBoy {
         Timer = new Timer(this);
         serial = new Serial(this);
         joypad = new Joypad(this);
-        APU = new Audio(this);
+        APU = new APU(this);
         
         CPU.Registers.A = 0x01;
         CPU.Registers.F = 0xB0;
@@ -81,7 +81,7 @@ public class GameBoy {
         serial.Tick();
         DMA.Tick();
         PPU.Tick();
-        //APU.Tick();
+        APU.Tick();
         
         if (Model == GameBoyType.Color && double_speed_mode) {
             CPU.Tick();

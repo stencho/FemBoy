@@ -18,6 +18,7 @@ public class GameboyEmulator {
     public PPU PPU => gameboy.PPU;
     public IMemory RAM => gameboy.RAM;
     public Cartridge Cartridge => gameboy.Cartridge;
+    public APU APU => gameboy.APU;
     
     public Texture2D texture;
     
@@ -66,8 +67,7 @@ public class GameboyEmulator {
         }
         
         gameboy = new GameBoy();
-        
-        //gameboy.CPU.StartTrace("trace.txt");
+        gameboy.APU.volume = gvars.get_float("snd_volume");
         
         UpdateFrameBufferTexture();
         GC.Collect();
@@ -79,7 +79,6 @@ public class GameboyEmulator {
         cycles = 0;
         total_frames = 0;
         CRASHED = false;
-        //_execution_paused = false;
         
         current_ROM = filename;
         

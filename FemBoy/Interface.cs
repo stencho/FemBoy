@@ -212,7 +212,7 @@ public static class Interface {
             ));
         
         menu_system.add_menu_page("settings", new VerticalMenu(
-            new VerticalMenuSlider("Volume", 0, 100, 50, 5),
+            new VerticalMenuSlider("Volume", 0, 100, (int)(100 * gvars.get_float("snd_volume")), 5, (value) => gvars.set("snd_volume", value)),
             new VerticalMenuItem("ROM Folder", null),
             new VerticalMenuItem("Back", menu_system.go_up_submenu)
             ));

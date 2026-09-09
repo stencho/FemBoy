@@ -69,9 +69,15 @@ public class FemBoyGame : Game {
     }
     
     protected override void Initialize() {
+        State.AddExtraGvars += () => {
+            gvars.add_gvar("snd_volume", gvar_data_type.FLOAT, 1.0f, true, "Sets the emulator audio output volume.");
+        };
+        
         State.Initialize(this, Content, _graphics, Window);
         base.Initialize();
         
+        gvars.add_change_action("snd_volume", () => { gb.APU.volume = gvars.get_float("snd_volume"); });
+            
         global_binds = new BindWatcher(bind_list);
         global_binds.cares_about_UI_focus = BindWatcher.UIFocusConsideration.DoesntCare;
 
