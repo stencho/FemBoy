@@ -6,7 +6,7 @@ using Raven.UI;
 
 namespace FemBoy.UI;
 
-public class VerticalMenuItem {
+public class MenuItem {
     private string text = "";
     public string Text => text;
 
@@ -17,12 +17,12 @@ public class VerticalMenuItem {
     public virtual void pressed_left() {}
     public virtual void pressed_right() {}
     
-    public VerticalMenuItem(string text, Action on_pressed) {
+    public MenuItem(string text, Action on_pressed) {
         this.text = text;
         Pressed = on_pressed;
     }
 
-    public virtual void draw(VerticalMenu parent, bool selected, Vector2i top_left, Vector2i bottom_right) {
+    public virtual void draw(MenuPage parent, bool selected, Vector2i top_left, Vector2i bottom_right) {
         var middle = top_left + (new Vector2(parent.menu_width, item_height + parent.item_gap) / 2f);
             
         if (selected) {
@@ -34,7 +34,7 @@ public class VerticalMenuItem {
     }
 }
 
-public class VerticalMenuSlider : VerticalMenuItem {
+public class MenuSlider : MenuItem {
     public override int item_height { get; set; } = 60;
 
     public int Value => (int)(Minimum + ((Maximum - Minimum) * value_f));
@@ -48,7 +48,7 @@ public class VerticalMenuSlider : VerticalMenuItem {
 
     public Action<float>? ValueChanged;
     
-    public VerticalMenuSlider(string text, int min, int max, int value, int step, Action<float> value_changed = null) : base(text, null) {
+    public MenuSlider(string text, int min, int max, int value, int step, Action<float> value_changed = null) : base(text, null) {
         Minimum = min;
         Maximum = max;
         Step = step;
@@ -63,7 +63,7 @@ public class VerticalMenuSlider : VerticalMenuItem {
         ValueChanged = value_changed;
     }
 
-    public override void draw(VerticalMenu parent, bool selected, Vector2i top_left, Vector2i bottom_right) {
+    public override void draw(MenuPage parent, bool selected, Vector2i top_left, Vector2i bottom_right) {
         var height_half = item_height / 2f;
         var middle = top_left + (new Vector2(parent.menu_width, height_half + parent.item_gap) / 2f);
         var middle_of_bottom = top_left + (new Vector2(parent.menu_width / 2f, height_half + (height_half / 2f)));
@@ -101,10 +101,10 @@ public class VerticalMenuSlider : VerticalMenuItem {
     }
 }
 
-public class VerticalMenu : IMenuPage {
+public class MenuPage : IMenuPage {
     public string font = "04b11";
     
-    VerticalMenuItem[] menu_items;
+    MenuItem[] menu_items;
     
     public int menu_width = 300;
     public int item_gap = 4;
@@ -117,7 +117,7 @@ public class VerticalMenu : IMenuPage {
     
     int menu_height = 1;
     
-    public VerticalMenu(params VerticalMenuItem[] menu_items) {
+    public MenuPage(params MenuItem[] menu_items) {
         this.menu_items = menu_items;
         
         foreach (var menu_item in menu_items) {

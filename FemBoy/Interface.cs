@@ -203,18 +203,18 @@ public static class Interface {
         
         menu_system = new MenuSystem("main");
         
-        menu_system.add_menu_page("main", new VerticalMenu(
-            new VerticalMenuItem("Resume", menu_system.close_menu),
-            new VerticalMenuItem("Save States", () => { }),
-            new VerticalMenuItem("ROMs", () => {  }),
-            new VerticalMenuItem("Settings", () => menu_system.open_submenu("settings")),
-            new VerticalMenuItem("Exit", game.Exit)
+        menu_system.add_menu_page("main", new MenuPage(
+            new MenuItem("Resume", menu_system.close_menu),
+            new MenuItem("Save States", () => { }),
+            new MenuItem("ROMs", () => {  }),
+            new MenuItem("Settings", () => menu_system.open_submenu("settings")),
+            new MenuItem("Exit", game.Exit)
             ));
         
-        menu_system.add_menu_page("settings", new VerticalMenu(
-            new VerticalMenuSlider("Volume", 0, 100, (int)(100 * gvars.get_float("snd_volume")), 5, (value) => gvars.set("snd_volume", value)),
-            new VerticalMenuItem("ROM Folder", null),
-            new VerticalMenuItem("Back", menu_system.go_up_submenu)
+        menu_system.add_menu_page("settings", new MenuPage(
+            new MenuSlider("Volume", 0, 100, (int)(100 * gvars.get_float("snd_volume")), 5, (value) => gvars.set("snd_volume", value)),
+            new MenuItem("ROM Folder", null),
+            new MenuItem("Back", menu_system.go_up_submenu)
             ));
         
         State.UI.add_window(memory_window);
