@@ -3,7 +3,7 @@ using FemBoy.Memory;
 
 namespace FemBoy;
 
-public enum GameBoyType {
+public enum GameBoyModel {
     Color, DotMatrix
 }
 
@@ -14,7 +14,7 @@ public class GameBoy {
     public const int VBLANK_SCANLINE = 144;
     public const int DOTS_PER_SCANLINE = 456;
     
-    public GameBoyType Model = GameBoyType.DotMatrix;
+    public GameBoyModel Model = GameBoyModel.DotMatrix;
 
     private const ushort SpeedSwitchMemoryAddress = 0xFF4D;
     
@@ -32,7 +32,9 @@ public class GameBoy {
     
     public Cartridge Cartridge;
 
-    public GameBoy() {
+    public GameBoy(GameBoyModel model = GameBoyModel.DotMatrix) {
+        Model = model;
+        
         CPU = new CPU(this);
         PPU = new PPU(this);
         DMA = new DMA(this);
@@ -55,6 +57,7 @@ public class GameBoy {
         Timer.TIMA = 0x00;
         Timer.TMA = 0x00;
         Timer.TAC = 0x00;
+        
     }
     
     public void LoadROM(string filename) {
@@ -83,7 +86,7 @@ public class GameBoy {
         PPU.Tick();
         APU.Tick();
         
-        if (Model == GameBoyType.Color && double_speed_mode) {
+        if (Model == GameBoyModel.Color && double_speed_mode) {
             CPU.Tick();
             CPU.Tick();
         } else {
@@ -138,6 +141,9 @@ public class GameBoy {
             case TimerRegisterAddresses.TAC: return (byte)(Timer.TAC | 0xF8);
 
             // AUDIO REGISTERS
+            case >= 0xFF10 and <= 0xFF3F: return APU.Read(address);
+            
+            /*
             case AudioRegisterAddresses.NR10: return APU.NR10;
             case AudioRegisterAddresses.NR11: return APU.NR11;
             case AudioRegisterAddresses.NR12: return APU.NR12;
@@ -159,7 +165,7 @@ public class GameBoy {
             case AudioRegisterAddresses.NR50: return APU.NR50;
             case AudioRegisterAddresses.NR51: return APU.NR51;
             case AudioRegisterAddresses.NR52: return APU.NR52;
-
+            */
         }
         
         return RAM.Read(address);
@@ -220,9 +226,11 @@ public class GameBoy {
             case TimerRegisterAddresses.TIMA: { Timer.TIMA = value; return; }
             case TimerRegisterAddresses.TMA: { Timer.TMA = value; return; }
             case TimerRegisterAddresses.TAC: { Timer.WriteTAC(value); return; }
-
-        
+            
             // AUDIO REGISTERS
+            case >= 0xFF10 and <= 0xFF3F: { APU.Write(address, value); return; }
+            
+            /*
             case AudioRegisterAddresses.NR10: { APU.NR10 = value; return; }
             case AudioRegisterAddresses.NR11: { APU.NR11 = value; return; }
             case AudioRegisterAddresses.NR12: { APU.NR12 = value; return; }
@@ -248,6 +256,7 @@ public class GameBoy {
             case AudioRegisterAddresses.NR50: { APU.NR50 = value; return; }
             case AudioRegisterAddresses.NR51: { APU.NR51 = value; return; }
             case AudioRegisterAddresses.NR52: { APU.NR52 = value; return; }
+            */
 
         }
         

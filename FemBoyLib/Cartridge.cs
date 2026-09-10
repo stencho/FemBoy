@@ -57,7 +57,7 @@ public class Cartridge {
             file.ReadExactly(ROM, 0, ROM.Length);
         }
         
-        if (gameboy.Model == GameBoyType.DotMatrix) {
+        if (gameboy.Model == GameBoyModel.DotMatrix) {
             for (int i = 0; i < 16; i++) {
                 if (!Ascii.IsValid((char)ROM[0x0134 + i]) || ROM[0x0134 + i] == 0x00) break;
                 Title += (char)ROM[0x0134 + i];
