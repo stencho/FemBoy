@@ -32,6 +32,9 @@ public class GameBoy {
     
     public Cartridge Cartridge;
 
+    public Action<ushort, byte>? WriteMonitor;
+    public Action<ushort>? ReadMonitor;
+    
     public GameBoy(GameBoyModel model = GameBoyModel.DotMatrix) {
         Model = model;
         
@@ -49,7 +52,7 @@ public class GameBoy {
         CPU.Registers.F = 0xB0;
         CPU.Registers.B = 0x00;
         CPU.Registers.C = 0x13;
-        CPU.Registers.D = 0x13;
+        CPU.Registers.D = 0x00;
         CPU.Registers.E = 0xD8;
         CPU.Registers.H = 0x01;
         CPU.Registers.L = 0x4D;
@@ -78,8 +81,7 @@ public class GameBoy {
     
     public void Tick() {
         if (CPU.Stopped) return;
-        total_cycle++;
-        
+
         Timer.Tick();
         serial.Tick();
         DMA.Tick();
@@ -92,7 +94,9 @@ public class GameBoy {
         } else {
             CPU.Tick();
         }
-
+        
+        
+        total_cycle++;
         save_timer++;
         if (save_timer > CLOCK_SPEED_HZ) {
             save_timer = 0;
@@ -102,6 +106,8 @@ public class GameBoy {
     }
 
     public byte ReadMemory(ushort address) {
+        ReadMonitor?.Invoke(address);
+        
         switch (address) {
             // INTERRUPT REGISTERS
             case InterruptRegisterAddresses.IF: return (byte)(CPU.Registers.IF | 0xE0);
@@ -172,6 +178,8 @@ public class GameBoy {
     }
     
     public void WriteMemory(ushort address, byte value) {
+        WriteMonitor?.Invoke(address, value);
+        
         switch (address) {
             // INTERRUPT REGISTERS
             case InterruptRegisterAddresses.IF: CPU.Registers.IF = (byte)(value & 0x1F); return;
@@ -219,7 +227,7 @@ public class GameBoy {
             case PPURegisterAddresses.WY:  PPU.WY = value; return;
             case PPURegisterAddresses.WX:  PPU.WX = value; return;
             
-            case PPURegisterAddresses.DMA: DMA.Register = value; DMA.Start(value); return;
+            case PPURegisterAddresses.DMA: DMA.Request(value); return;
             
             // TIMER REGISTERS
             case TimerRegisterAddresses.DIV: { Timer.ResetDivider(); return; }
