@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace FemBoy;
 
 public class DMA {
@@ -5,22 +7,37 @@ public class DMA {
     public DMA(GameBoy gameboy) => this.gameboy = gameboy;
     
     public bool Active { get; set; } = false;
+    public bool Requested { get; set; } = false;
+    
+    public bool BusBlocked { get; private set; } = false;
+    
     
     private ushort source;
+    private ushort requested_source;
     private int rw_index;
     private int cycle_counter = 0;
+    public int Cycle => cycle_counter;
+    
     private bool read_phase = true;
     private byte buffered_value = 0x00;
 
     public byte Register = 0x00;
-    
-    public void Start(byte value) {
+
+    public void Request(byte value) {
         Register = value;
-        source = (ushort)(value << 8);
+        requested_source = (ushort)(value << 8);
+        Debug.WriteLine($"DMA Request at {gameboy.total_cycle} cycles");
+        Requested = true;
+    }
+    
+    public void Start() {
         rw_index = 0;
         Active = true;
-        cycle_counter = -4;
+        Requested = false;
+        if (!BusBlocked) cycle_counter = -4;
         read_phase = true;
+        source = requested_source;
+        Debug.WriteLine($"DMA Start at {gameboy.total_cycle} cycles");
     }
     
     public void Tick() {
@@ -31,6 +48,9 @@ public class DMA {
         cycle_counter = 0;
 
         if (read_phase) {
+            if (!BusBlocked)
+                Debug.WriteLine($"First DMA read at {gameboy.total_cycle} cycles");
+            BusBlocked = true;
             buffered_value = gameboy.RAM.Read((ushort)(source + rw_index));
         } else {
             gameboy.RAM.Write((ushort)(0xFE00 + rw_index), buffered_value);
@@ -41,6 +61,7 @@ public class DMA {
         
         if (rw_index == 160) {
             Active = false;
+            BusBlocked = false;
         }
     }
 }
