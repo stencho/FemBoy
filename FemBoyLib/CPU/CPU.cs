@@ -34,6 +34,8 @@ public class CPU {
     
     public bool InterruptRequested(InterruptMask interrupt) => (Registers.IE & Registers.IF & (byte)interrupt) != 0;
     public bool InterruptPending => (Registers.IE & Registers.IF & 0x1F) != 0;
+
+    public Action<byte>? ChangedOpcode;
     
     internal byte t_cycle = 0;
     public uint ops = 0;
@@ -104,7 +106,12 @@ public class CPU {
 
     internal byte ReadMemory(ushort address) {
         // can only access HRAM during DMA transfer
-        if (gameboy.DMA.Active && (address < 0xFF80 || address > 0xFFFE)) return 0xFF; 
+        if (gameboy.DMA.BusBlocked && (address < 0xFF80 || address > 0xFFFE)) {
+            if (address != PPURegisterAddresses.DMA) {
+                //Debug.WriteLine($"DMA BLOCKED {address}");
+                return 0xFF;
+            }
+        } 
         
         // cannot access VRAM during PPU mode 3
         if (address >= 0x8000 && address <= 0x9FFF && gameboy.PPU.Mode == (PPUMode)3) return 0xFF;
@@ -119,7 +126,9 @@ public class CPU {
 
     internal void WriteMemory(ushort address, byte value) {
         // Same lockouts as above
-        if (gameboy.DMA.Active && (address < 0xFF80 || address > 0xFFFE)) return;
+        if (gameboy.DMA.BusBlocked && (address < 0xFF80 || address > 0xFFFE)) {
+            if (address != PPURegisterAddresses.DMA) return;
+        }
 
         switch (gameboy.PPU.Mode) {
             case PPUMode.OAM_SEARCH_2:
@@ -141,7 +150,7 @@ public class CPU {
 
     public ConcurrentQueue<OpcodeInfo> LastNOpcodes = new();
     private int track_n_opcodes = 50;
-    public bool track_opcodes = false;
+    public bool track_opcodes = true;
     private uint last_op_total_cycles = 0;
     private uint cycles_since_last_op = 0;
 
@@ -168,6 +177,9 @@ public class CPU {
             _halted = false;
         }
 
+        if (t_cycle == 0  && !executing_opcode&& gameboy.DMA.Requested) 
+            gameboy.DMA.Start();
+        
         // if we're at a 0-cycle, there's an interrupt pending, and we haven't got an instruction ready
         // to execute, then handle the interrupt instead
         if (t_cycle == 0 && !executing_opcode && interrupt_master_enable && InterruptPending) {
@@ -182,6 +194,7 @@ public class CPU {
             return;
         }
         
+
         // execute the next t-cycle of the current instruction
         ExecuteInstruction();
     }
@@ -192,6 +205,10 @@ public class CPU {
             case 1: break; // Open read gates
             case 2:        // Sample opcode
                 current_opcode = ReadMemory(Registers.PC);
+                ChangedOpcode?.Invoke(current_opcode);
+                
+                //if (current_opcode == 0x40) wants_pause = true;
+                //if (current_opcode == 0xFF) wants_pause = true;
                 
                 if (_halt_bug) _halt_bug = false;
                 else Registers.PC++;
@@ -223,10 +240,11 @@ public class CPU {
     }
 
     public void FinishOperation() {
+
+        if (track_opcodes && Operations.current_operation != Operations.InterruptServicePipeline) current_op.cycles = (uint)(t_cycle+4);
+        
         Operations.current_operation = null;
         executing_opcode = false;
-
-        if (track_opcodes) current_op.cycles = (uint)(t_cycle+4);
         
         ops++;
         t_cycle = 0;
