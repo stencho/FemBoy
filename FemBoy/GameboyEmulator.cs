@@ -101,6 +101,7 @@ public class GameboyEmulator {
     public void StepExecution() {
         _execution_paused = true;
         run_single_execution_step = true;
+        gameboy.CPU.wants_pause = false;
     }
     
     public int total_frames = 0;
@@ -109,7 +110,10 @@ public class GameboyEmulator {
     public void Update() {
         if (CRASHED) return;
         if (gameboy == null || input == null) return;
-        
+        if (gameboy.CPU.wants_pause) {
+            _execution_paused = true;
+            gameboy.CPU.wants_pause = false;
+        }
         input.Update(gameboy.joypad);
         
         if (ExecutionPaused && run_single_execution_step) {
