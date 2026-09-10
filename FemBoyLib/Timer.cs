@@ -29,7 +29,6 @@ public class Timer {
     private byte _TMA = 0x00;
     public byte TIMA {
         get {
-            // Reads during Cycle 0, 1, and 2 return 0x00
             if (TIMA_reload_pending && TIMA_reload_delay < 3) {
                 return 0x00;
             }
@@ -37,7 +36,6 @@ public class Timer {
         }
         set {
             if (TIMA_reload_pending) {
-                // CPU can overwrite and cancel the reload up until the latch closes at index 3
                 if (TIMA_reload_delay < 3) {
                     _TIMA = value;
                     TIMA_reload_pending = false;
@@ -52,8 +50,6 @@ public class Timer {
         get => _TMA;
         set {
             _TMA = value;
-            // If TMA is written to on the exact cycle the value propagates to TIMA (Cycle 3)
-            // the newly written byte must instantly become visible in TIMA
             if (TIMA_reload_pending && TIMA_reload_delay == 3) {
                 _TIMA = _TMA;
             }
@@ -79,17 +75,14 @@ public class Timer {
         if (TIMA_reload_pending) {
             TIMA_reload_delay++;
         
-            // Phase 1: The Interrupt Flag triggers early!
             if (TIMA_reload_delay == 1) {
-                CPU.RequestInterrupt(InterruptMask.Timer); // IF |= 0x04
+                CPU.RequestInterrupt(InterruptMask.Timer); 
             }
         
-            // Phase 3: The Latch copies TMA over to TIMA and shuts down
             if (TIMA_reload_delay == 3) {
                 _TIMA = _TMA;
             }
         
-            // Phase 4: Reset the cycle tracking limits
             if (TIMA_reload_delay >= 4) {
                 TIMA_reload_pending = false;
                 TIMA_reload_delay = 0;
@@ -100,7 +93,7 @@ public class Timer {
 
     public void ResetDivider() {
         bool old = GetTimerSignal();
-        divider = 0;
+        divider = 1;
         if (old && !GetTimerSignal()) {
             IncrementTIMA();
         }
@@ -131,7 +124,7 @@ public class Timer {
             3 => 7,  // Clock / 256
             _ => 0
         };
-        return (((divider+1) >> bit) & 1) == 1;
+        return (((divider) >> bit) & 1) == 1;
     }
 }
 
