@@ -192,10 +192,12 @@ public class PPU {
 
                 if (!SpriteFetcher.Active) {
                    BGFetcher.Tick();
-                   Sprite? sprite = SpriteFetcher.GetSpriteAtX(pixels_drawn);
-                   if (sprite != null) {
-                       SpriteFetcher.Start(sprite);
-                       BGFetcher.current_fetch_state = FetchState.Tile;
+                   if ((gameboy.Model == GameBoyModel.DotMatrix && OBJEnabled) || gameboy.Model == GameBoyModel.Color) {
+                       Sprite? sprite = SpriteFetcher.GetSpriteAtX(pixels_drawn);
+                       if (sprite != null) {
+                           SpriteFetcher.Start(sprite);
+                           BGFetcher.current_fetch_state = FetchState.Tile;
+                       }
                    }
                 } 
 
