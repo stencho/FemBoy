@@ -112,8 +112,6 @@ public class BGFetcher {
                 current_fetch_state = FetchState.Tile;
                 break;
         }
-
-        //stall = 1;
     }
 
     void FetchTileID() {
