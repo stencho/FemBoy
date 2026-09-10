@@ -55,6 +55,15 @@ No easy way to select a ROM yet, either start with a ROM as a command line argum
 - [ ] oam_bug (passing 3 & 6, fail all others)
 - [x] halt_bug
 
+#### Mooneye
+| Pass | DNF   | Fail | Total  |
+|:----:|:-----:|:----:|:------:|
+| 39   |   9   |  18  |   66   |
+
+- Currently excluding 9 tests which always fail on DMG 
+- All DNF tests appear to be due to DMA CPU bus blocking-related timing issues, leading to $FF opcodes trashing RAM
+- All DNF tests are also _timing tests, jp/ret/reti/etc
+
 #### Numism
 | Stage 1 | Stage 2 | Stage 3 | Stage 4 | Stage 5 |
 |:-------:|:-------:|:-------:|:-------:|:-------:|
@@ -62,5 +71,5 @@ No easy way to select a ROM yet, either start with a ROM as a command line argum
 
 - Stage 1: Needs APU for 3/5/6
 - Stage 2: Needs APU for 16/17, needs OAM corruption bug for 20
-- Stage 3: Needs APU for 21, not certain why 23 fails- STAT japes, 26 fails due to PPU sprite fetching + stalls not being properly implemented
+- Stage 3: Needs APU for 21, not certain why 23 fails (STAT japes), 26 fails due to very slight PPU timing issues
 - Stage 4: 33 is more STAT japes, 37 needs better DMA blocking, 38 needs APU
