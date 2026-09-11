@@ -19,8 +19,12 @@ public class DMA {
     public int Cycle => cycle_counter;
     
     private bool read_phase = true;
+    public bool ReadPhase => read_phase;
     private byte buffered_value = 0x00;
+    public byte BusValue => buffered_value;
 
+    public ushort Source => source;
+    
     public byte Register = 0x00;
 
     public void Request(byte value) {

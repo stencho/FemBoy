@@ -107,7 +107,13 @@ public class CPU {
     internal byte ReadMemory(ushort address) {
         // can only access HRAM during DMA transfer
         if (gameboy.DMA.BusBlocked && (address < 0xFF80 || address > 0xFFFE)) {
-            if (address != PPURegisterAddresses.DMA) return 0xFF;
+            if (address != PPURegisterAddresses.DMA) {
+                if (gameboy.Model == GameBoyModel.DotMatrix && gameboy.DMA.Source >= 0xC000 && gameboy.DMA.Source <= 0xDFFF) {
+                    return gameboy.DMA.BusValue;
+                }
+
+                return 0xFF;
+            }
         } 
         
         // cannot access VRAM during PPU mode 3

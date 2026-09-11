@@ -67,9 +67,10 @@ No easy way to select a ROM yet, either start with a ROM as a command line argum
 #### Numism
 | Stage 1 | Stage 2 | Stage 3 | Stage 4 | Stage 5 |
 |:-------:|:-------:|:-------:|:-------:|:-------:|
-|  7/10   |  7/10   |  7/10   |  7/10   |   1/1   |
+|  7/10   |  7/10   |  7/10   |  8/10   |   1/1   |
 
 - Stage 1: Needs APU for 3/5/6
 - Stage 2: Needs APU for 16/17, needs OAM corruption bug for 20
 - Stage 3: Needs APU for 21, not certain why 23 fails (STAT japes), 26 fails due to very slight PPU timing issues
-- Stage 4: 33 is more STAT japes, 37 needs better DMA blocking, 38 needs APU
+- Stage 4: 33 is more STAT japes, 38 needs APU
+- Some of the passes ARE false positives due to the stubbed out APU
