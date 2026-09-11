@@ -121,4 +121,16 @@ public class CPURegisters {
 
     public byte IE = 0x00;
     public byte IF = 0x00;
+    
+    private byte _KEY1 = 0x00;
+    public byte KEY1 {
+        get => gameboy.Model == GameBoyModel.Color ?  (byte)(_KEY1 | 0x7E) : (byte)0xFF;
+        set {
+            if (gameboy.Model == GameBoyModel.Color)
+                _KEY1 = (byte)((_KEY1 & 0x80) | (value & 0x01));
+        }
+    }
+
+    public bool DoubleSpeed => (_KEY1 & 0x80) != 0;
+    public bool SpeedSwitchArmed => (_KEY1 & 0x01) != 0;
 }

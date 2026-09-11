@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Text;
 using FemBoy.Memory;
 
 namespace FemBoy;
@@ -16,7 +17,6 @@ public class GameBoy {
     
     public GameBoyModel Model = GameBoyModel.DotMatrix;
 
-    private const ushort SpeedSwitchMemoryAddress = 0xFF4D;
     
     private bool double_speed_mode = false;
     
@@ -81,20 +81,27 @@ public class GameBoy {
     
     public void Tick() {
         if (CPU.Stopped) return;
-
-        Timer.Tick();
-        serial.Tick();
-        DMA.Tick();
-        PPU.Tick();
-        APU.Tick();
         
-        if (Model == GameBoyModel.Color && double_speed_mode) {
+        if (Model == GameBoyModel.Color && CPU.Registers.DoubleSpeed) {
             CPU.Tick();
+            Timer.Tick();
+            serial.Tick();
+            DMA.Tick();
+            
             CPU.Tick();
+            Timer.Tick();
+            serial.Tick();
+            DMA.Tick();
+            
         } else {
             CPU.Tick();
+            Timer.Tick();
+            serial.Tick();
+            DMA.Tick();
         }
         
+        PPU.Tick();
+        APU.Tick();
         
         total_cycle++;
         save_timer++;
@@ -146,32 +153,11 @@ public class GameBoy {
             case TimerRegisterAddresses.TMA: return Timer.TMA;
             case TimerRegisterAddresses.TAC: return (byte)(Timer.TAC | 0xF8);
 
+            // KEY1
+            case CPURegisterAddresses.KEY1: return CPU.Registers.KEY1;
+            
             // AUDIO REGISTERS
             case >= 0xFF10 and <= 0xFF3F: return APU.Read(address);
-            
-            /*
-            case AudioRegisterAddresses.NR10: return APU.NR10;
-            case AudioRegisterAddresses.NR11: return APU.NR11;
-            case AudioRegisterAddresses.NR12: return APU.NR12;
-            case AudioRegisterAddresses.NR13: return APU.NR13;
-            case AudioRegisterAddresses.NR14: return APU.NR14;
-            case AudioRegisterAddresses.NR21: return APU.NR21;
-            case AudioRegisterAddresses.NR22: return APU.NR22;
-            case AudioRegisterAddresses.NR23: return APU.NR23;
-            case AudioRegisterAddresses.NR24: return APU.NR24;
-            case AudioRegisterAddresses.NR30: return APU.NR30;
-            case AudioRegisterAddresses.NR31: return APU.NR31;
-            case AudioRegisterAddresses.NR32: return APU.NR32;
-            case AudioRegisterAddresses.NR33: return APU.NR33;
-            case AudioRegisterAddresses.NR34: return APU.NR34;
-            case AudioRegisterAddresses.NR41: return APU.NR41;
-            case AudioRegisterAddresses.NR42: return APU.NR42;
-            case AudioRegisterAddresses.NR43: return APU.NR43;
-            case AudioRegisterAddresses.NR44: return APU.NR44;
-            case AudioRegisterAddresses.NR50: return APU.NR50;
-            case AudioRegisterAddresses.NR51: return APU.NR51;
-            case AudioRegisterAddresses.NR52: return APU.NR52;
-            */
         }
         
         return RAM.Read(address);
@@ -235,36 +221,11 @@ public class GameBoy {
             case TimerRegisterAddresses.TMA: { Timer.TMA = value; return; }
             case TimerRegisterAddresses.TAC: { Timer.WriteTAC(value); return; }
             
+            // KEY1
+            case CPURegisterAddresses.KEY1: CPU.Registers.KEY1 = value; return;
+            
             // AUDIO REGISTERS
             case >= 0xFF10 and <= 0xFF3F: { APU.Write(address, value); return; }
-            
-            /*
-            case AudioRegisterAddresses.NR10: { APU.NR10 = value; return; }
-            case AudioRegisterAddresses.NR11: { APU.NR11 = value; return; }
-            case AudioRegisterAddresses.NR12: { APU.NR12 = value; return; }
-            case AudioRegisterAddresses.NR13: { APU.NR13 = value; return; }
-            case AudioRegisterAddresses.NR14: { APU.NR14 = value; return; }
-    
-            case AudioRegisterAddresses.NR21: { APU.NR21 = value; return; }
-            case AudioRegisterAddresses.NR22: { APU.NR22 = value; return; }
-            case AudioRegisterAddresses.NR23: { APU.NR23 = value; return; }
-            case AudioRegisterAddresses.NR24: { APU.NR24 = value; return; }
-    
-            case AudioRegisterAddresses.NR30: { APU.NR30 = value; return; }
-            case AudioRegisterAddresses.NR31: { APU.NR31 = value; return; }
-            case AudioRegisterAddresses.NR32: { APU.NR32 = value; return; }
-            case AudioRegisterAddresses.NR33: { APU.NR33 = value; return; }
-            case AudioRegisterAddresses.NR34: { APU.NR34 = value; return; }
-    
-            case AudioRegisterAddresses.NR41: { APU.NR41 = value; return; }
-            case AudioRegisterAddresses.NR42: { APU.NR42 = value; return; }
-            case AudioRegisterAddresses.NR43: { APU.NR43 = value; return; }
-            case AudioRegisterAddresses.NR44: { APU.NR44 = value; return; }
-    
-            case AudioRegisterAddresses.NR50: { APU.NR50 = value; return; }
-            case AudioRegisterAddresses.NR51: { APU.NR51 = value; return; }
-            case AudioRegisterAddresses.NR52: { APU.NR52 = value; return; }
-            */
 
         }
         

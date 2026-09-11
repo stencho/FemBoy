@@ -9,6 +9,10 @@ public static class InterruptRegisterAddresses {
     public const ushort IE = 0xFFFF;
 }
 
+public static class CPURegisterAddresses {
+    public const ushort KEY1 = 0xFF4D;
+}
+
 public enum InterruptMask : byte {
     VBlank = 0x01,
     LCD = 0x02,
