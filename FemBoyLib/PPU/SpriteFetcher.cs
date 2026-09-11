@@ -99,7 +99,7 @@ public class SpriteFetcher {
         
         if (FIFO[offset].HasValue && FIFO[offset].Value.OAMIndex >= pixel.OAMIndex) return;
         if (FIFO[offset].HasValue && FIFO[offset].Value.Color != 0) return;
-        
+        if (pixel.Color == 0) return;
         FIFO[offset] = pixel;
     }
     
