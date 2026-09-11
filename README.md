@@ -56,9 +56,9 @@ No easy way to select a ROM yet, either start with a ROM as a command line argum
 - [x] halt_bug
 
 #### Mooneye
-| Pass | DNF   | Fail | Total  |
-|:----:|:-----:|:----:|:------:|
-| 39   |   9   |  18  |   66   |
+| Pass | DNF   | Fail | Total |
+|:----:|:-----:|:----:|:-----:|
+|  41  |   9   |  16  |  66   |
 
 - Currently excluding 9 tests which always fail on DMG 
 - All DNF tests appear to be due to DMA CPU bus blocking-related timing issues, leading to $FF opcodes trashing RAM
