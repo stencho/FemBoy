@@ -157,7 +157,9 @@ public class PPU {
                 lcd_startup_scanline = false;
                 mode = PPUMode.OAM_SEARCH_2;
                 
-            } else if (LY == 144) {
+            } 
+            
+            if (LY == 144) {
                 mode = PPUMode.VBLANK_1;
                 BGFetcher.ResetWindowLineCounter();
                 BGFetcher.window_active = false;
@@ -226,6 +228,7 @@ public class PPU {
                 }
                 
             } else {
+                SpriteFetcher.Active = false;
                 SpriteFetcher.ClearFIFO();
                 //Console.WriteLine($"LY {LY} DOT {dot-80}");
                 mode = PPUMode.HBLANK_0;
