@@ -49,7 +49,7 @@ No easy way to select a ROM yet, either start with a ROM as a command line argum
 - [x] cpu_instrs
 - [ ] dmg_sound (no audio support yet)
 - [x] instr_timing
-- [x] interrupt_time
+- [x] interrupt_time (At least, failing correctly for DMG)
 - [x] mem_timing
 - [x] mem_timing-2
 - [ ] oam_bug (passing 3 & 6, fail all others)
@@ -58,11 +58,16 @@ No easy way to select a ROM yet, either start with a ROM as a command line argum
 #### Mooneye
 | Pass | DNF   | Fail | Total |
 |:----:|:-----:|:----:|:-----:|
-|  41  |   9   |  16  |  66   |
+|  42  |   9   |  15  |  66   |
 
 - Currently excluding 9 tests which always fail on DMG 
 - All DNF tests appear to be due to DMA CPU bus blocking-related timing issues, leading to $FF opcodes trashing RAM
 - All DNF tests are also _timing tests, jp/ret/reti/etc
+
+#### GBMicroTest
+| Pass |  DNF  | Fail  | Total |
+|:----:|:-----:|:-----:|:----:|
+| 212  | 29    | 272   | 513  |
 
 #### Numism
 | Stage 1 | Stage 2 | Stage 3 | Stage 4 | Stage 5 |

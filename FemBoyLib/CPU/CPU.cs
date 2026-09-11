@@ -62,14 +62,8 @@ public class CPU {
                 else if (InterruptRequested(InterruptMask.Timer)) current_interrupt = InterruptMask.Timer;
                 else if (InterruptRequested(InterruptMask.Serial)) current_interrupt = InterruptMask.Serial;
                 else if (InterruptRequested(InterruptMask.Joypad)) current_interrupt = InterruptMask.Joypad;
-                else {
-                    Registers.PC = 0x0000;
-                    interrupt_master_enable = false;
-                    return;
-                }
                 
                 interrupt_master_enable = false;
-                Registers.IF &= (byte)~(byte)current_interrupt;
             },
             () => { }, 
             
@@ -79,17 +73,28 @@ public class CPU {
             () => { 
                 Registers.SP--;
                 WriteMemory(Registers.SP, (byte)(Registers.PC >> 8)); 
+                
+                if ((Registers.IE & (byte)current_interrupt) == 0) {
+                    if      (InterruptRequested(InterruptMask.VBlank)) current_interrupt = InterruptMask.VBlank;
+                    else if (InterruptRequested(InterruptMask.LCD)) current_interrupt = InterruptMask.LCD;
+                    else if (InterruptRequested(InterruptMask.Timer)) current_interrupt = InterruptMask.Timer;
+                    else if (InterruptRequested(InterruptMask.Serial)) current_interrupt = InterruptMask.Serial;
+                    else if (InterruptRequested(InterruptMask.Joypad)) current_interrupt = InterruptMask.Joypad;
+                    else current_interrupt = 0;
+                }
             },
             
             () => { }, () => { }, () => { },
             () => { 
                 Registers.SP--;
-                WriteMemory(Registers.SP, (byte)(Registers.PC & 0xFF)); 
+                WriteMemory(Registers.SP, (byte)(Registers.PC & 0xFF));
             },
 
             
             () => { }, () => { }, () => { },
             () => { 
+                Registers.IF &= (byte)~(byte)current_interrupt;
+                
                 Registers.PC = current_interrupt switch {
                     InterruptMask.VBlank => 0x0040,
                     InterruptMask.LCD    => 0x0048,
