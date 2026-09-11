@@ -162,6 +162,8 @@ public class PPU {
                 BGFetcher.ResetWindowLineCounter();
                 BGFetcher.window_active = false;
                 
+                lcd_startup_scanline = false;
+                
                 CPU.RequestInterrupt(InterruptMask.VBlank);
 
                 if (!frame_ready) {
