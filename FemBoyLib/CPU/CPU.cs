@@ -107,10 +107,7 @@ public class CPU {
     internal byte ReadMemory(ushort address) {
         // can only access HRAM during DMA transfer
         if (gameboy.DMA.BusBlocked && (address < 0xFF80 || address > 0xFFFE)) {
-            if (address != PPURegisterAddresses.DMA) {
-                //Debug.WriteLine($"DMA BLOCKED {address}");
-                return 0xFF;
-            }
+            if (address != PPURegisterAddresses.DMA) return 0xFF;
         } 
         
         // cannot access VRAM during PPU mode 3
@@ -177,7 +174,7 @@ public class CPU {
             _halted = false;
         }
 
-        if (t_cycle == 0  && !executing_opcode&& gameboy.DMA.Requested) 
+        if (t_cycle == 0 && gameboy.DMA.Requested) 
             gameboy.DMA.Start();
         
         // if we're at a 0-cycle, there's an interrupt pending, and we haven't got an instruction ready
