@@ -120,7 +120,7 @@ public class CPURegisters {
     public ushort PC = 0x0100;
 
     public byte IE = 0x00;
-    public byte IF = 0x00;
+    public byte IF = 0xE1;
     
     private byte _KEY1 = 0x00;
     public byte KEY1 {
