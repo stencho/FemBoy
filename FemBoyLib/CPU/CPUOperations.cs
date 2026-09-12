@@ -23,70 +23,70 @@ public class CPUOperations {
     internal enum HLMutation {None, Inc, Dec}
     internal HLMutation hl_mutation = HLMutation.None;
     
-    internal Action[] AddU16RegReg;
+    internal Action?[] AddU16RegReg;
 
-    internal Action[] LDU16SP;
+    internal Action?[] LDU16SP;
     
-    internal Action[] JR;
+    internal Action?[] JR;
 
-    internal Action[] RETTaken;
-    internal Action[] RETFailed;
+    internal Action?[] RETTaken;
+    internal Action?[] RETFailed;
     
-    internal Action[] JRFailed;
-    internal Action[] JRTaken;
+    internal Action?[] JRFailed;
+    internal Action?[] JRTaken;
 
-    internal Action[] LDU16;
-    internal Action[] LDSPHL;
+    internal Action?[] LDU16;
+    internal Action?[] LDSPHL;
     
-    internal Action[] JPFailed;
-    internal Action[] JPTaken;
+    internal Action?[] JPFailed;
+    internal Action?[] JPTaken;
 
-    internal Action[] LDRegFromMem;
-    internal Action[] LDMemFromReg;
+    internal Action?[] LDRegFromMem;
+    internal Action?[] LDMemFromReg;
     
-    internal Action[] IncU16Reg;
-    internal Action[] DecU16Reg;
+    internal Action?[] IncU16Reg;
+    internal Action?[] DecU16Reg;
 
-    internal Action[] IncHLMem;
-    internal Action[] DecHLMem;
+    internal Action?[] IncHLMem;
+    internal Action?[] DecHLMem;
     
-    internal Action[] LDRegImmU8;
-    internal Action[] LDHLImmU8;
+    internal Action?[] LDRegImmU8;
+    internal Action?[] LDHLImmU8;
     
-    internal Action[] AddMem;
-    internal Action[] AdcMem;
-    internal Action[] SubMem;
-    internal Action[] SbcMem;
-    internal Action[] AndMem;
-    internal Action[] XorMem;
-    internal Action[] OrMem;
-    internal Action[] CpMem;
+    internal Action?[] AddMem;
+    internal Action?[] AdcMem;
+    internal Action?[] SubMem;
+    internal Action?[] SbcMem;
+    internal Action?[] AndMem;
+    internal Action?[] XorMem;
+    internal Action?[] OrMem;
+    internal Action?[] CpMem;
 
-    internal Action[] LDHImmToA;
-    internal Action[] LDHAToImm;
+    internal Action?[] LDHImmToA;
+    internal Action?[] LDHAToImm;
 
-    internal Action[] AddSPImm8;
-    internal Action[] LDHSPImm8;
+    internal Action?[] AddSPImm8;
+    internal Action?[] LDHSPImm8;
     
-    internal Action[] PopReg16;
-    internal Action[] PushReg16;
+    internal Action?[] PopReg16;
+    internal Action?[] PushReg16;
     
-    internal Action[] RETUnconditional;
-    internal Action[] RETI;
+    internal Action?[] RETUnconditional;
+    internal Action?[] RETI;
     
-    internal Action[] LDAnn;
-    internal Action[] LDnnA;
+    internal Action?[] LDAnn;
+    internal Action?[] LDnnA;
 
-    internal Action[] CALLTaken;
+    internal Action?[] CALLTaken;
 
-    internal Action[] ALUImm;
+    internal Action?[] ALUImm;
     
-    internal Action[] RSTPipeline;
+    internal Action?[] RSTPipeline;
 
-    internal Action[] CBMemory;
-    internal Action[] CBRegister;
+    internal Action?[] CBMemory;
+    internal Action?[] CBRegister;
     
-    internal Action[] InterruptServicePipeline;
+    internal Action?[] InterruptServicePipeline;
     
 
     public CPUOperations(GameBoy gameboy) {
@@ -94,7 +94,7 @@ public class CPUOperations {
         
         AddU16RegReg = [
             //M2
-            () => { }, () => { }, () => { },
+            null, null, null,
             () => {
                 ushort t_val = Registers.Getters[target_register]();
                 ushort s_val = Registers.Getters[source_register]();
@@ -116,13 +116,13 @@ public class CPUOperations {
         
         LDU16SP = [
             //M2
-            () => { }, () => { },
+            null, null,
             () => {
                 BufferByteLow(CPU.ReadMemory(Registers.PC++));
             },
-            () => { },
+            null,
             //M3
-            () => { }, () => { }, 
+            null, null, 
             () => {
                 BufferByteHigh(CPU.ReadMemory(Registers.PC++));
             },
@@ -130,12 +130,12 @@ public class CPUOperations {
                 pointer = buffer;
             },
             //M4
-            () => { }, () => { }, () => { },
+            null, null, null,
             () => {
                 CPU.WriteMemory(pointer, (byte)(Registers.SP & 0xFF));
             },
             //M5
-            () => { }, () => { }, () => { },
+            null, null, null,
             () => {
                 CPU.WriteMemory((ushort)(pointer + 1), (byte)(Registers.SP >> 8));
                 
@@ -145,13 +145,13 @@ public class CPUOperations {
 
         LDU16 = [
             //M2
-            () => { }, () => { } , 
+            null, null , 
             () => {
                 BufferByteLow(CPU.ReadMemory(Registers.PC++));
             }, 
-            () => { },
+            null,
             //M3
-            () => { }, () => { } , 
+            null, null , 
             () => {
                 BufferByteHigh(CPU.ReadMemory(Registers.PC++));
             }, 
@@ -163,13 +163,13 @@ public class CPUOperations {
         
         JR = [
             //M2
-            () => { }, () => { },
+            null, null,
             () => {
                 buffer = CPU.ReadMemory(Registers.PC++);
             },
-            () => { },
+            null,
             //M3
-            () => { }, () => { }, () => { },
+            null, null, null,
             () => {
                 Registers.PC = (ushort)(Registers.PC + (sbyte)buffer);
                 
@@ -178,7 +178,7 @@ public class CPUOperations {
         ];
 
         JRFailed = [
-            () => { }, () => { }, () => {
+            null, null, () => {
                 buffer = CPU.ReadMemory(Registers.PC++);
             },
             () => {
@@ -188,11 +188,11 @@ public class CPUOperations {
         
         JRTaken = [
             //M2
-            () => { }, () => { }, 
+            null, null, 
             () => { buffer = CPU.ReadMemory(Registers.PC++); }, 
             () => {Registers.PC = (ushort)(Registers.PC + (sbyte)buffer); },
             //M3
-            () => { }, () => { }, () => { },
+            null, null, null,
             () => {
                 CPU.FinishOperation();
             }, 
@@ -200,11 +200,11 @@ public class CPUOperations {
         
         JPFailed = [
             //M2
-            () => { }, () => { },
+            null, null,
             () => { BufferByteLow(CPU.ReadMemory(Registers.PC++)); }, 
-            () => { },
+            null,
             //M3
-            () => { }, () => { },
+            null, null,
             () => {
                 BufferByteHigh(CPU.ReadMemory(Registers.PC++));
             },
@@ -216,13 +216,13 @@ public class CPUOperations {
         
         JPTaken = [
             //M2
-            () => { }, () => { },
+            null, null,
             () => {
                 BufferByteLow(CPU.ReadMemory(Registers.PC++));
             },
-            () => { },
+            null,
             //M3
-            () => { }, () => { },
+            null, null,
             () => {
                 BufferByteHigh(CPU.ReadMemory(Registers.PC++));
             }, 
@@ -230,7 +230,7 @@ public class CPUOperations {
                 pointer = buffer; 
             },
             //M4
-            () => { }, () => { }, () => { }, 
+            null, null, null, 
             () => { 
                 Registers.PC = pointer; 
                 CPU.FinishOperation(); 
@@ -238,7 +238,7 @@ public class CPUOperations {
         ];
         
         LDRegFromMem = [
-            () => { }, () => { }, 
+            null, null, 
             () => { 
                 buffer = CPU.ReadMemory(pointer); 
             },
@@ -251,7 +251,7 @@ public class CPUOperations {
         ];
 
         LDMemFromReg = [
-            () => { }, () => { }, () => { }, 
+            null, null, null, 
             () => { 
                 CPU.WriteMemory(pointer, (byte)Registers.Getters[source_register]());
                 if (hl_mutation == HLMutation.Inc) Registers.HL++;
@@ -261,7 +261,7 @@ public class CPUOperations {
         ];
         
         LDSPHL = [
-            () => { }, () => { }, () => { }, 
+            null, null, null, 
             () => {    
                 Registers.SP = Registers.HL;
                 CPU.FinishOperation();
@@ -269,7 +269,7 @@ public class CPUOperations {
         ];
         
         IncU16Reg = [
-            () => { }, () => { }, () => { }, 
+            null, null, null, 
             () => {   
                 ushort val = Registers.Getters[target_register]();
                 Registers.Setters[target_register]((ushort)(val + 1));
@@ -278,7 +278,7 @@ public class CPUOperations {
         ];
 
         DecU16Reg = [
-            () => { }, () => { }, () => { }, 
+            null, null, null, 
             () => {    
                 ushort val = Registers.Getters[target_register]();
                 Registers.Setters[target_register]((ushort)(val - 1));
@@ -287,11 +287,11 @@ public class CPUOperations {
         ];
         
         IncHLMem = [
-            () => { }, () => { },
+            null, null,
             () => { buffer = CPU.ReadMemory(pointer); }, 
-            () => { },
+            null,
 
-            () => { }, () => { }, () => { },
+            null, null, null,
             () => {   
                 IncrementAtAddress();
                 CPU.FinishOperation();
@@ -299,11 +299,11 @@ public class CPUOperations {
         ];
 
         DecHLMem = [
-            () => { }, () => { }, 
+            null, null, 
             () => { buffer = CPU.ReadMemory(pointer); }, 
-            () => { },
+            null,
             
-            () => { }, () => { }, () => { },
+            null, null, null,
             () => {   
                 DecrementAtAddress();
                 CPU.FinishOperation();
@@ -311,7 +311,7 @@ public class CPUOperations {
         ];
         
         LDRegImmU8 = [
-            () => { }, () => { },
+            null, null,
             () => { 
                 buffer = CPU.ReadMemory(Registers.PC++); 
             },
@@ -322,13 +322,13 @@ public class CPUOperations {
         ];
 
         LDHLImmU8 = [
-            () => { }, () => { },
+            null, null,
             () => {
                 buffer = CPU.ReadMemory(Registers.PC++);
             }, 
-            () => { },
+            null,
     
-            () => { }, () => { }, () => { },
+            null, null, null,
             () => {   
                 CPU.WriteMemory(pointer, (byte)buffer);
                 CPU.FinishOperation();
@@ -336,7 +336,7 @@ public class CPUOperations {
         ];
         
         AddMem = [
-            () => { }, () => { },
+            null, null,
             () => { buffer = CPU.ReadMemory(pointer); }, 
             () => {
                 byte a = Registers.A;
@@ -348,7 +348,7 @@ public class CPUOperations {
         ];
         
         AdcMem = [
-            () => { }, () => { },
+            null, null,
             () => { buffer = CPU.ReadMemory(pointer); }, 
             () => {
                 byte a = Registers.A;
@@ -360,7 +360,7 @@ public class CPUOperations {
         ];
         
         SubMem = [
-            () => { }, () => { },
+            null, null,
             () => { buffer = CPU.ReadMemory(pointer); }, 
             () => {
                 byte a = Registers.A;
@@ -372,7 +372,7 @@ public class CPUOperations {
         ];
         
         SbcMem = [
-            () => { }, () => { },
+            null, null,
             () => { buffer = CPU.ReadMemory(pointer); }, 
             () => {
                 byte a = Registers.A;
@@ -384,7 +384,7 @@ public class CPUOperations {
         ];
         
         AndMem = [
-            () => { }, () => { },
+            null, null,
             () => { buffer = CPU.ReadMemory(pointer); }, 
             () => {
                 byte a = Registers.A;
@@ -396,7 +396,7 @@ public class CPUOperations {
         ];
         
         XorMem = [
-            () => { }, () => { },
+            null, null,
             () => { buffer = CPU.ReadMemory(pointer); }, 
             () => {
                 byte a = Registers.A;
@@ -408,7 +408,7 @@ public class CPUOperations {
         ];
         
         OrMem = [
-            () => { }, () => { },
+            null, null,
             () => { buffer = CPU.ReadMemory(pointer); }, 
             () => {
                 byte a = Registers.A;
@@ -420,7 +420,7 @@ public class CPUOperations {
         ];
         
         CpMem = [
-            () => { }, () => { },
+            null, null,
             () => { buffer = CPU.ReadMemory(pointer); }, 
             () => {
                 byte a = Registers.A;
@@ -432,22 +432,22 @@ public class CPUOperations {
         
         RETTaken = [
             //M2
-            () => { }, () => { },
+            null, null,
             () => { buffer = CPU.ReadMemory(Registers.SP++); }, 
-            () => { },
+            null,
     
             //M3
-            () => { }, () => { },
+            null, null,
             () => { 
                 buffer |= (ushort)(CPU.ReadMemory(Registers.SP++) << 8); 
             }, 
-            () => { },
+            null,
 
             //M4
-            () => { }, () => { }, () => { }, () => { },
+            null, null, null, null,
             
             //M5
-            () => { }, () => { }, () => { }, 
+            null, null, null, 
             () => {
                 Registers.PC = buffer; 
                 CPU.FinishOperation();
@@ -455,13 +455,13 @@ public class CPUOperations {
         ];
         
         RETFailed = [
-            () => { }, () => { }, () => { },
+            null, null, null,
             () => { CPU.FinishOperation(); }
         ];
         
         LDHImmToA = [
             //M2
-            () => { }, () => { },
+            null, null,
             () => {
                 buffer = CPU.ReadMemory(Registers.PC++);
             },
@@ -470,7 +470,7 @@ public class CPUOperations {
             },
 
             //M3
-            () => { }, () => { },
+            null, null,
             () => {
                 buffer = CPU.ReadMemory(pointer);
             }, 
@@ -482,7 +482,7 @@ public class CPUOperations {
 
         LDHAToImm = [
             //M2
-            () => { }, () => { },
+            null, null,
             () => {
                 buffer = CPU.ReadMemory(Registers.PC++);
             }, 
@@ -491,7 +491,7 @@ public class CPUOperations {
             },
 
             //M3
-            () => { }, () => { }, () => { },
+            null, null, null,
             () => { 
                 byte a = (byte)Registers.Getters[(int)TargetRegister.A]();
                 CPU.WriteMemory(pointer, a);
@@ -501,15 +501,15 @@ public class CPUOperations {
         
         AddSPImm8 = [
             //M2
-            () => { },() => { },() => { },() => { },
+            null,null,null,null,
             
             //M3
-            () => { }, () => { },
+            null, null,
             () => { buffer = CPU.ReadMemory(Registers.PC++); }, 
-            () => { },
+            null,
 
             //M4
-            () => { }, () => { }, () => { },
+            null, null, null,
             () => {
                 ushort oldSp = Registers.SP;
                 sbyte offset = (sbyte)buffer;
@@ -531,12 +531,12 @@ public class CPUOperations {
         
         LDHSPImm8 = [
             //M2
-            () => { }, () => { },
+            null, null,
             () => { buffer = CPU.ReadMemory(Registers.PC++); },
-            () => { },
+            null,
 
             //M3
-            () => { }, () => { }, () => { },
+            null, null, null,
             () => {
                 ushort oldSp = Registers.SP;
                 sbyte offset = (sbyte)buffer; 
@@ -557,12 +557,12 @@ public class CPUOperations {
         
         PopReg16 = [
             //M2
-            () => { }, () => { },
+            null, null,
             () => { BufferByteLow(CPU.ReadMemory(Registers.SP++)); },
-            () => { },
+            null,
     
             //M3
-            () => { }, () => { },
+            null, null,
             () => { BufferByteHigh(CPU.ReadMemory(Registers.SP++)); },
             () => {
                 CPU.Registers.Setters[target_register](buffer);
@@ -572,20 +572,20 @@ public class CPUOperations {
         
         PushReg16 = [
             //M2
-            () => { }, () => { }, () => { }, 
+            null, null, null, 
             () => {
                 buffer = CPU.Registers.Getters[source_register](); 
             },
     
             //M3
-            () => { }, () => { }, () => { },
+            null, null, null,
             () => { 
                 Registers.SP--;
                 CPU.WriteMemory(Registers.SP, (byte)(buffer >> 8)); 
             },
     
             //M4
-            () => { }, () => { }, () => { },
+            null, null, null,
             () => { 
                 Registers.SP--;
                 CPU.WriteMemory(Registers.SP, (byte)(buffer & 0xFF)); 
@@ -595,25 +595,25 @@ public class CPUOperations {
         
         RETUnconditional = [
             //M2
-            () => { }, 
-            () => { },
+            null, 
+            null,
             () => {
                 BufferByteLow(CPU.ReadMemory(Registers.SP++)); 
             }, 
-            () => { },
+            null,
     
             //M3
-            () => { }, 
-            () => { },
+            null, 
+            null,
             () => {
                 BufferByteHigh(CPU.ReadMemory(Registers.SP++)); 
             }, 
-            () => { },
+            null,
 
             //M4
-            () => { },
-            () => { },
-            () => { },
+            null,
+            null,
+            null,
             () => {   
                 Registers.PC = buffer; 
                 CPU.FinishOperation();
@@ -622,25 +622,25 @@ public class CPUOperations {
         
         RETI = [
             //M2
-            () => { }, 
-            () => { },
+            null, 
+            null,
             () => {
                 BufferByteLow(CPU.ReadMemory(Registers.SP++)); 
             }, 
-            () => { },
+            null,
     
             //M3
-            () => { }, 
-            () => { },
+            null, 
+            null,
             () => {
                 BufferByteHigh(CPU.ReadMemory(Registers.SP++)); 
             }, 
-            () => { },
+            null,
 
             //M4
-            () => { },
-            () => { },
-            () => { },
+            null,
+            null,
+            null,
             () => {   
                 Registers.PC = buffer; 
                 CPU.interrupt_master_enable = true;
@@ -651,14 +651,14 @@ public class CPUOperations {
         
         LDAnn = [
             //M2
-            () => { }, () => { },
+            null, null,
             () => {
                 BufferByteLow(CPU.ReadMemory(Registers.PC++));
             },
-            () => { },
+            null,
 
             //M3
-            () => { }, () => { },
+            null, null,
             () => {
                 BufferByteHigh(CPU.ReadMemory(Registers.PC++));
             },
@@ -667,7 +667,7 @@ public class CPUOperations {
             },
 
             //M4
-            () => { }, () => { },
+            null, null,
             () => {
                 buffer = CPU.ReadMemory(pointer);
             }, 
@@ -679,14 +679,14 @@ public class CPUOperations {
 
         LDnnA = [
             //M2
-            () => { }, () => { },
+            null, null,
             () => {
                 BufferByteLow(CPU.ReadMemory(Registers.PC++));
             },
-            () => { },
+            null,
 
             //M3
-            () => { }, () => { },
+            null, null,
             () => {
                 BufferByteHigh(CPU.ReadMemory(Registers.PC++));
             },
@@ -695,7 +695,7 @@ public class CPUOperations {
             },
 
             //M4
-            () => { }, () => { }, () => { },
+            null, null, null,
             () => { 
                 CPU.WriteMemory(pointer, Registers.A);
                 CPU.FinishOperation();
@@ -704,12 +704,12 @@ public class CPUOperations {
 
         CALLTaken = [
             //M2
-            () => { }, () => { },
+            null, null,
             () => { BufferByteLow(CPU.ReadMemory(Registers.PC++)); }, 
-            () => { },
+            null,
 
             //M3
-            () => { }, () => { },
+            null, null,
             () => { BufferByteHigh(CPU.ReadMemory(Registers.PC++)); }, 
             () => {
                 pointer = buffer;
@@ -717,17 +717,17 @@ public class CPUOperations {
             },
 
             //M4
-            () => { }, () => { }, () => { }, () => { },
+            null, null, null, null,
 
             //M5
-            () => {Registers.SP--; }, () => { }, () => { },
+            () => {Registers.SP--; }, null, null,
             () => { 
                 
                 CPU.WriteMemory(Registers.SP, (byte)(return_address>> 8)); 
             },
 
             //M6
-            () => { Registers.SP--;}, () => { }, () => { },
+            () => { Registers.SP--;}, null, null,
             () => { 
                 CPU.WriteMemory(Registers.SP, (byte)(return_address & 0xFF));
                 
@@ -738,7 +738,7 @@ public class CPUOperations {
         
         ALUImm = [
             //M2
-            () => { }, () => { }, 
+            null, null, 
             () => { 
                 buffer = CPU.ReadMemory(Registers.PC++); 
             },
@@ -763,17 +763,17 @@ public class CPUOperations {
         
         RSTPipeline = [
             //M2
-            () => { }, () => { }, () => { }, () => { },
+            null, null, null, null,
 
             //M3
-            () => { }, () => { }, () => { },
+            null, null, null,
             () => { 
                 Registers.SP--;
                 CPU.WriteMemory(Registers.SP, (byte)(Registers.PC >> 8)); 
             },
 
             //M4
-            () => { }, () => { }, () => { },
+            null, null, null,
             () => { 
                 Registers.SP--;
                 CPU.WriteMemory(Registers.SP, (byte)(Registers.PC & 0xFF)); 
@@ -785,7 +785,7 @@ public class CPUOperations {
         
         CBRegister = [
             //M2
-            () => { }, () => { }, 
+            null, null, 
             () => { 
                 buffer = CPU.ReadMemory(Registers.PC++); 
             },
@@ -797,7 +797,7 @@ public class CPUOperations {
         
         CBMemory = [
             //M2
-            () => { }, () => { },
+            null, null,
             () => {
                 buffer = CPU.ReadMemory(Registers.PC++);
             },
@@ -806,7 +806,7 @@ public class CPUOperations {
             },
 
             //M3
-            () => { }, () => { }, 
+            null, null, 
             () => {
                 buffer = CPU.ReadMemory(Registers.HL); 
             },
@@ -818,7 +818,7 @@ public class CPUOperations {
                 }},
 
             //M4
-            () => { }, () => { }, () => { },
+            null, null, null,
             () => {
                 byte result = ExecuteCbMemoryOperation(cb_sub_op, (byte)buffer);
         

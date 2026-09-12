@@ -59,7 +59,10 @@ public class CPU {
         Operations = new CPUOperations(gameboy);
         
         Operations.InterruptServicePipeline = [
-            () => { }, () => { },
+            
+            null, null, null, null, 
+            
+            null, null,
             () => {
                 if      (InterruptRequested(InterruptMask.VBlank)) current_interrupt = InterruptMask.VBlank;
                 else if (InterruptRequested(InterruptMask.LCD)) current_interrupt = InterruptMask.LCD;
@@ -69,11 +72,10 @@ public class CPU {
                 
                 interrupt_master_enable = false;
             },
-            () => { }, 
+            null, 
             
-            () => { }, () => { }, () => { }, () => { }, 
             
-            () => { }, () => { }, () => { },
+            null, null, null,
             () => { 
                 Registers.SP--;
                 WriteMemory(Registers.SP, (byte)(Registers.PC >> 8)); 
@@ -88,14 +90,14 @@ public class CPU {
                 }
             },
             
-            () => { }, () => { }, () => { },
+            null, null, null,
             () => { 
                 Registers.SP--;
                 WriteMemory(Registers.SP, (byte)(Registers.PC & 0xFF));
             },
 
             
-            () => { }, () => { }, () => { },
+            null, null, null,
             () => { 
                 Registers.IF &= (byte)~(byte)current_interrupt;
                 
@@ -241,7 +243,7 @@ public class CPU {
 
     void ExecuteInstruction() {
         if (Operations.current_operation != null && t_cycle < Operations.current_operation.Length) {
-            Operations.current_operation[t_cycle++]();
+            Operations.current_operation[t_cycle++]?.Invoke();
             return;
         }
         
