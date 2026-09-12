@@ -34,7 +34,7 @@ public class CPU {
     private CPUOperations Operations;
     
     public bool interrupt_master_enable = false;
-    internal bool _ime_enable_requested = false;
+    internal int _ime_enable_delay = 0;
     
     public bool InterruptRequested(InterruptMask interrupt) => (Registers.IE & Registers.IF & (byte)interrupt) != 0;
     public bool InterruptPending => (Registers.IE & Registers.IF & 0x1F) != 0;
@@ -194,6 +194,7 @@ public class CPU {
         if (t_cycle == 0 && gameboy.DMA.Requested) 
             gameboy.DMA.Start();
         
+        
         // if we're at a 0-cycle, there's an interrupt pending, and we haven't got an instruction ready
         // to execute, then handle the interrupt instead
         if (t_cycle == 0 && !executing_opcode && interrupt_master_enable && InterruptPending) {
@@ -202,12 +203,16 @@ public class CPU {
             executing_opcode = true;
         }
         
+        if (t_cycle == 0 && !executing_opcode && _ime_enable_delay > 0) {
+            _ime_enable_delay--;
+            if (_ime_enable_delay == 0) interrupt_master_enable = true;
+        }
+        
         // not currently executing an instruction, so fetch the next one
         if (!executing_opcode) {
             OpcodeFetch();
             return;
         }
-        
 
         // execute the next t-cycle of the current instruction
         ExecuteInstruction();
@@ -229,11 +234,6 @@ public class CPU {
                 
                 break; 
             case 3:        // Execute instruction
-                if (_ime_enable_requested) {
-                    _ime_enable_requested = false;
-                    interrupt_master_enable = true;
-                }
-
                 DecodeAndBuildExecutionPipeline(current_opcode); //Mansell decoding function
                 return;
         }
@@ -576,11 +576,11 @@ public class CPU {
                 }
                 else if (y == 6) { // DI
                     interrupt_master_enable = false;
-                    _ime_enable_requested = false;
+                    _ime_enable_delay = 0;
                     FinishOperation();
                     
                 }else if (y == 7) { // EI
-                    _ime_enable_requested = true;
+                    _ime_enable_delay = 1;
                     FinishOperation();
                 } else {
                     throw new Exception($"INVALID OPCODE: {opcode:X2} @ {Registers.PC:X4}");

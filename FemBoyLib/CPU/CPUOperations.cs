@@ -644,7 +644,7 @@ public class CPUOperations {
             () => {   
                 Registers.PC = buffer; 
                 CPU.interrupt_master_enable = true;
-                CPU._ime_enable_requested = false;
+                CPU._ime_enable_delay = 0;
                 CPU.FinishOperation();
             }
         ];
