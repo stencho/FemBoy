@@ -121,14 +121,14 @@ public static class Interface {
             string operand_two = op.operand_two != null ? $"{op.operand_two:X2}" : "  ";
             //if (op.cycles > op.intended_cycles) Console.WriteLine($"TOO MANY CYCLES {op.name} {op.cycles} > {op.intended_cycles}");
             output += $"{op.cycles,2}:{op.intended_cycles,2}{(op.cycles > op.intended_cycles ? "TOO MANY CYCLES!!!!!" : "")} {op.PC:X4} -> [{op.opcode:X2} {operand_one} {operand_two}] :: {op.name}\n";
-            /*if (op.name.StartsWith("CALL") || op.name.StartsWith("RET") || op.name.StartsWith("PUSH") || op.name.StartsWith("POP")) {
+            if (op.name.StartsWith("CALL") || op.name.StartsWith("RET") || op.name.StartsWith("PUSH") || op.name.StartsWith("POP")) {
                 output += $"SP CHANGE {op.SP_before:X4} -> {op.SP_after:X4} \n";
                 
                 if (op.stack_after == null) 
                     output += $"STACK CHANGE {PrintStack(op.stack_before)}\n";
                 else 
                     output += $"STACK CHANGE {PrintStack(op.stack_before)} -> {PrintStack(op.stack_after)}\n";
-            }*/
+            }
         }
         return output;
     }
@@ -143,8 +143,25 @@ public static class Interface {
         output += $"[FIFO Count] {gb.gameboy.PPU.BGFetcher.FIFO.Count}\n";
         output += $"[LY] {gb.gameboy.PPU.LY}\n";
         output += $"[LYC] {gb.gameboy.PPU.LYC}\n";
-        output += $"[Sprites]\n";
-        output += gb.gameboy.PPU.oam_search.OAM_List;
+        //output += $"[Sprites]\n";
+        //output += gb.gameboy.PPU.oam_search.OAM_List;
+        
+        return output;
+    }
+
+    public static string PrintAPUInfo() {
+        if (gb.gameboy == null) return "";
+        string output = "[APU]\n";
+
+        output += $"[Volume] {gb.APU.volume}\n";
+        output += $"[Square1] {(gb.APU.square1.Active ? "Enabled" : "Disabled")}\n";
+        output += $"  [Length] {gb.APU.square1.length}\n";
+        output += $"[Square2] {(gb.APU.square2.Active ? "Enabled" : "Disabled")}\n";
+        output += $"  [Length] {gb.APU.square2.length}\n";
+        output += $"[Wave] {(gb.APU.wave.Active ? "Enabled" : "Disabled")}\n";
+        output += $"  [Length] {gb.APU.wave.length}\n";
+        output += $"[Noise] {(gb.APU.noise.Active ? "Enabled" : "Disabled")}\n";
+        output += $"  [Length] {gb.APU.noise.length}\n";
         
         return output;
     }
@@ -172,6 +189,7 @@ public static class Interface {
                 PrintRegisters() + "\n" + 
                 PrintCartridgeInfo() + "\n" + 
                 PrintPPUInfo() + "\n" + 
+                PrintAPUInfo() + "\n" + 
                 PrintOPInfo() + "\n" + 
                 $"\n{(gb.Crashed ? " !CRASHED!" : "")} \n", 
                 

@@ -28,146 +28,271 @@ public static class AudioRegisterAddresses {
     public const ushort NR52 = 0xFF26;
 }
 
+public static class LocalAudioRegisterAddresses {
+    public const byte NR10 = 0x00;
+    public const byte NR11 = 0x01;
+    public const byte NR12 = 0x02;
+    public const byte NR13 = 0x03;
+    public const byte NR14 = 0x04;
+    
+    public const byte NR21 = 0x06;
+    public const byte NR22 = 0x07;
+    public const byte NR23 = 0x08;
+    public const byte NR24 = 0x09;
+    
+    public const byte NR30 = 0x0A;
+    public const byte NR31 = 0x0B;
+    public const byte NR32 = 0x0C;
+    public const byte NR33 = 0x0D;
+    public const byte NR34 = 0x0E;
+    
+    public const byte NR41 = 0x10;
+    public const byte NR42 = 0x11;
+    public const byte NR43 = 0x12;
+    public const byte NR44 = 0x13;
+    
+    public const byte NR50 = 0x14;
+    public const byte NR51 = 0x15;
+    public const byte NR52 = 0x16;
+}
+
+public class AudioChannel {
+    public bool Active { get; set; } = false;
+    public int length { get; set; }= 0;
+
+    public virtual void Trigger(byte value) {
+        Active = true;
+
+        length = 64 - (value & 0x3F);
+        if (length == 0) length = 64;
+    }
+
+    public void clock_length(bool enabled) {
+        if (!enabled || length == 0) return;
+        length--;
+        if (length == 0) Active = false;
+    }
+}
+
+public class SquareChannel : AudioChannel {
+    
+    
+    public void Trigger(byte value) {
+        base.Trigger(value);
+    }
+}
+
+public class WaveChannel : AudioChannel {
+    public void Trigger(byte value) {
+        Active = true;
+        length = 256 - value;
+        if (length == 0) length = 256;
+    }
+}
+public class NoiseChannel : AudioChannel {
+    public void Trigger(byte value) {
+        base.Trigger(value);
+    }
+}
+
 public class APU {
     private GameBoy gameboy;
-    public APU(GameBoy gameboy) => this.gameboy = gameboy;
 
+    public readonly byte[] registers = [
+        0x80, 0xBF, 0xF3, 0xFF, 0xBF, // channel 1
+        0xFF,                         // UNUSED
+        0x3F, 0x00, 0xFF, 0xBF,       // channel 2
+        0x7F, 0xFF, 0x9F, 0x00, 0xBF, // channel 3
+        0xFF,                         // UNUSED
+        0xFF, 0x00, 0x00, 0xBF,       // channel 4
+        0x77, 0xF3, 0xF1
+    ];
+    
+    public readonly byte[] wave_ram = new byte[0x10];
+    
+    public APU(GameBoy gameboy) {
+        this.gameboy = gameboy;
+
+        enabled = true;
+        
+        square1.Active = true;
+        square2.Active = false;
+        wave.Active = false;
+        noise.Active = false;
+    }
+
+
+    private bool enabled = true;
     public float volume = 1.0f;
 
-    public void Tick() {
+    public readonly SquareChannel square1 = new();
+    public readonly SquareChannel square2 = new();
+    public readonly WaveChannel wave = new();
+    public readonly NoiseChannel noise = new();
+
+    void APUOn() {
+        enabled = true;
+    }
+    void APUOff() {
+        enabled = false;
         
+        square1.Active = false;
+        square2.Active = false;
+        wave.Active = false;
+        noise.Active = false;
+        
+        Array.Clear(registers, 0x00, 0x17);
+    }
+
+    private int counter = 0;
+    private int step = 0;
+    
+    public void Tick() {
+        if (!enabled) return;
+
+        counter++;
+
+        if (counter < 8192) return;
+        counter = 0;
+        
+        step = (step + 1) & 7;
+        
+        if ((step & 1) == 0) {
+            square1.clock_length((registers[LocalAudioRegisterAddresses.NR14] & 0x40) != 0);
+            square2.clock_length((registers[LocalAudioRegisterAddresses.NR24] & 0x40) != 0);
+            wave.clock_length((registers[LocalAudioRegisterAddresses.NR34] & 0x40) != 0);
+            noise.clock_length((registers[LocalAudioRegisterAddresses.NR44] & 0x40) != 0);
+        }
+
+        if (step == 2 || step == 6) {
+            //square1.clock_sweep();
+        }
+
+        if (step == 7) {
+            //square1.clock_envelope();
+            //square2.clock_envelope();
+            //noise.clock_envelope();
+        }
+
+    }
+
+    public byte Read(ushort address) {
+        if (address is >= 0xFF27 and <= 0xFF2F) return 0xFF; // UNUSED
+        
+        if (address >= 0xFF30) return wave_ram[(ushort)(address - 0xFF30)];
+        
+        if (address == AudioRegisterAddresses.NR52) { // special handling for NR52/AUDENA
+            byte value = 0x70;
+
+            if (enabled)        value |= 0x80;
+            if (square1.Active) value |= 0x01;
+            if (square2.Active) value |= 0x02;
+            if (wave.Active)    value |= 0x04;
+            if (noise.Active)   value |= 0x08;
+
+            return value;
+        }
+        
+        return (byte)(registers[address - 0xFF10] | ReadMask(address));
     }
     
-    // Channel 1
-    private byte _NR10 = 0x80;
-    public byte NR10
-    {
-        get => (byte)(_NR10 | 0x80);
-        set => _NR10 = (byte)(value & 0x7F);
+    public void Write(ushort address, byte value) {
+
+        if (address is >= 0xFF27 and <= 0xFF2F) return; // UNUSED
+        
+        if (address == AudioRegisterAddresses.NR52) {
+            bool turn_on = (value & 0x80) != 0;
+            
+            if (!enabled && turn_on) APUOn();
+            if (enabled && !turn_on) APUOff();
+            
+            return;
+        }
+
+        if (address >= 0xFF30) {
+            wave_ram[address - 0xFF30] = value;
+            return;
+        }
+
+        if (!enabled) return;
+
+        byte masked_value = (byte)(value & WriteMask(address));
+        registers[address - 0xFF10] = masked_value;
+
+        switch (address) {
+            case AudioRegisterAddresses.NR14 when (value & 0x80) != 0: 
+                square1.Trigger(registers[LocalAudioRegisterAddresses.NR11]); 
+                break;
+            
+            case AudioRegisterAddresses.NR24 when (value & 0x80) != 0: 
+                square2.Trigger(registers[LocalAudioRegisterAddresses.NR21]); 
+                break;
+            
+            case AudioRegisterAddresses.NR34 when (value & 0x80) != 0: 
+                wave.Trigger(registers[LocalAudioRegisterAddresses.NR31]); 
+                break;
+            
+            case AudioRegisterAddresses.NR44 when (value & 0x80) != 0: 
+                noise.Trigger(registers[LocalAudioRegisterAddresses.NR41]); 
+                break;
+        }
+
     }
     
-    private byte _NR11 = 0xBF;
-    public byte NR11 {
-        get => (byte)(_NR11 | 0x3F);
-        set => _NR11 = value;
-    }
+    private static byte ReadMask(ushort address) {
+        return address switch {
+            AudioRegisterAddresses.NR10 => 0x80,
+            
+            AudioRegisterAddresses.NR11 => 0x3F, AudioRegisterAddresses.NR12 => 0x00, 
+            AudioRegisterAddresses.NR13 => 0xFF, AudioRegisterAddresses.NR14 => 0xBF,
+            
+            AudioRegisterAddresses.NR21 => 0x3F, AudioRegisterAddresses.NR22 => 0x00,
+            AudioRegisterAddresses.NR23 => 0xFF, AudioRegisterAddresses.NR24 => 0xBF,
+            
+            AudioRegisterAddresses.NR30 => 0x7F,
+            
+            AudioRegisterAddresses.NR31 => 0xFF, AudioRegisterAddresses.NR32 => 0x9F,
+            AudioRegisterAddresses.NR33 => 0xFF, AudioRegisterAddresses.NR34 => 0xBF,
+            
+            AudioRegisterAddresses.NR41 => 0xC0, AudioRegisterAddresses.NR42 => 0x00,
+            AudioRegisterAddresses.NR43 => 0x00, AudioRegisterAddresses.NR44 => 0xBF,
+            
+            AudioRegisterAddresses.NR50 => 0x00, AudioRegisterAddresses.NR51 => 0x00,
 
-    private byte _NR12 = 0xF3;
-    public byte NR12 {
-        get => _NR12;
-        set => _NR12 = value;
-    }
-
-    private byte _NR13 = 0xFF;
-    public byte NR13 {
-        get => 0xFF;
-        set => _NR13 = value;
-    }
-
-    private byte _NR14 = 0xBF;
-    public byte NR14 {
-        get => (byte)(_NR14 | 0xBF);
-        set => _NR14 = (byte)(value & 0xC7);
-    }
-
-    // Channel 2
-    private byte _NR21 = 0x3F;
-    public byte NR21 {
-        get => (byte)(_NR21 | 0x3F);
-        set => _NR21 = value;
-    }
-
-    private byte _NR22 = 0x00;
-    public byte NR22 {
-        get => _NR22;
-        set => _NR22 = value;
-    }
-
-    private byte _NR23 = 0xFF;
-    public byte NR23 {
-        get => 0xFF;
-        set => _NR23 = value;
-    }
-
-    private byte _NR24 = 0xBF;
-    public byte NR24 {
-        get => (byte)(_NR24 | 0xBF);
-        set => _NR24 = (byte)(value & 0xC7);
-    }
-
-    // Channel 3
-    private byte _NR30 = 0x7F;
-    public byte NR30 {
-        get => (byte)(_NR30 | 0x7F);
-        set => _NR30 = (byte)(value & 0x80);
-    }
-
-    private byte _NR31 = 0xFF;
-    public byte NR31 {
-        get => 0xFF;
-        set => _NR31 = value;
-    }
-
-    private byte _NR32 = 0x9F;
-    public byte NR32 {
-        get => (byte)(_NR32 | 0x9F);
-        set => _NR32 = (byte)(value & 0x60);
-    }
-
-    private byte _NR33 = 0x00;
-    public byte NR33 {
-        get => 0xFF;
-        set => _NR33 = value;
-    }
-
-    private byte _NR34 = 0xBF;
-    public byte NR34 {
-        get => (byte)(_NR34 | 0xBF);
-        set => _NR34 = (byte)(value & 0xC7);
-    }
-
-    // Channel 4
-    private byte _NR41 = 0xFF;
-    public byte NR41 {
-        get => 0xFF;
-        set => _NR41 = value;
-    }
-
-    private byte _NR42 = 0x00;
-    public byte NR42 {
-        get => _NR42;
-        set => _NR42 = value;
-    }
-
-    private byte _NR43 = 0x00;
-    public byte NR43 {
-        get => _NR43;
-        set => _NR43 = value;
-    }
-
-    private byte _NR44 = 0xBF;
-    public byte NR44 {
-        get => (byte)(_NR44 | 0xBF);
-        set => _NR44 = (byte)(value & 0xC0);
-    }
-
-    // Control
-    private byte _NR50 = 0x77;
-    public byte NR50 {
-        get => _NR50;
-        set => _NR50 = value;
-    }
-
-    private byte _NR51 = 0xF3;
-    public byte NR51 {
-        get => _NR51;
-        set => _NR51 = value;
-    }
-
-    private byte _NR52 = 0xF1; // Startup should be (0x85 for CGB)
-    public byte NR52 {
-        get => (byte)(_NR52 | 0x70);
-        set => _NR52 = (byte)(value & 0x80);
+            _ => 0xFF
+        };
     }
     
+    private static byte WriteMask(ushort address) {
+        return address switch {
+            AudioRegisterAddresses.NR10 => 0x7F,
+            
+            AudioRegisterAddresses.NR11 => 0xFF, 
+            AudioRegisterAddresses.NR12 => 0xFF,
+            AudioRegisterAddresses.NR13 => 0xFF, 
+            AudioRegisterAddresses.NR14 => 0xC7,
+            
+            AudioRegisterAddresses.NR21 => 0xFF, 
+            AudioRegisterAddresses.NR22 => 0xFF,
+            AudioRegisterAddresses.NR23 => 0xFF, 
+            AudioRegisterAddresses.NR24 => 0xC7,
+            
+            AudioRegisterAddresses.NR30 => 0x80,
+            
+            AudioRegisterAddresses.NR31 => 0xFF, 
+            AudioRegisterAddresses.NR32 => 0x60,
+            AudioRegisterAddresses.NR33 => 0xFF, 
+            AudioRegisterAddresses.NR34 => 0xC7,
+            
+            AudioRegisterAddresses.NR41 => 0x3F, 
+            AudioRegisterAddresses.NR42 => 0xFF,
+            AudioRegisterAddresses.NR43 => 0xFF, 
+            AudioRegisterAddresses.NR44 => 0xC7,
+            
+            AudioRegisterAddresses.NR50 => 0xFF, 
+            AudioRegisterAddresses.NR51 => 0xFF,
+
+            _ => 0x00
+        };
+    }
 }
