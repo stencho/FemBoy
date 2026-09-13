@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 
@@ -21,9 +22,9 @@ public static class SaveGame {
         
         try {
             File.WriteAllBytes(save_file, RAM);
-            Console.WriteLine($"Saved game to {save_file}");
+            Debug.WriteLine($"Saved game to {save_file}");
         } catch (IOException ex) {
-            Console.WriteLine($"Failed to write save: {ex.Message}");
+            Debug.WriteLine($"Failed to write save: {ex.Message}");
         }
         
         Interlocked.Exchange(ref CurrentlySaving, false);
@@ -35,8 +36,7 @@ public static class SaveGame {
         if (File.Exists(save_file)) {
             byte[] save = File.ReadAllBytes(save_file);
             
-            if (save.Length != ram_size) 
-                Console.WriteLine($"Save file \"{save_file}\" corrupted, incorrect size");
+            if (save.Length != ram_size) Debug.WriteLine($"Save file \"{save_file}\" corrupted, incorrect size");
             else return save;
         }
         
