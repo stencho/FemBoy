@@ -37,21 +37,26 @@ public class DMA {
         rw_index = 0;
         Active = true;
         Requested = false;
-        cycle_counter = -4;
+        cycle_counter = 5;
         read_phase = true;
         source = requested_source;
     }
     
     public void Tick() {
         if (!Active) return;
+
+        if (cycle_counter > 0) {
+            cycle_counter--;
+            return;
+        }
         
-        cycle_counter++;
-        if (cycle_counter < 2) return;
-        cycle_counter = 0;
+        cycle_counter = 1;
 
         if (read_phase) {
+            if ((source + rw_index) >= 0xFE00) buffered_value = gameboy.RAM.Read((ushort)((source - 0x2000) + rw_index));
+            else buffered_value = gameboy.RAM.Read((ushort)(source + rw_index));
+            
             BusBlocked = true;
-            buffered_value = gameboy.RAM.Read((ushort)(source + rw_index));
         } else {
             gameboy.RAM.Write((ushort)(0xFE00 + rw_index), buffered_value);
             rw_index++;

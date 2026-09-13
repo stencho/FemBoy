@@ -58,7 +58,7 @@ No easy way to select a ROM yet, either start with a ROM as a command line argum
 #### Mooneye
 | Pass | DNF   | Fail | Total |
 |:----:|:-----:|:----:|:-----:|
-|  42  |   9   |  15  |  66   |
+|  43  |   9   |  15  |  66   |
 
 - Currently excluding 9 tests which always fail on DMG 
 - All DNF tests appear to be due to DMA CPU bus blocking-related timing issues, leading to $FF opcodes trashing RAM
