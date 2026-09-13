@@ -67,7 +67,7 @@ No easy way to select a ROM yet, either start with a ROM as a command line argum
 #### GBMicroTest
 | Pass |  DNF  | Fail  | Total |
 |:----:|:-----:|:-----:|:----:|
-| 212  | 29    | 272   | 513  |
+| 221  | 29    | 272   | 513  |
 
 #### Numism
 | Stage 1 | Stage 2 | Stage 3 | Stage 4 | Stage 5 |
