@@ -93,7 +93,7 @@ public class Timer {
 
     public void ResetDivider() {
         bool old = GetTimerSignal();
-        divider = 1;
+        divider = 0;
         if (old && !GetTimerSignal()) {
             IncrementTIMA();
         }

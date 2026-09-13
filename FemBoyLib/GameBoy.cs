@@ -79,6 +79,9 @@ public class GameBoy {
     internal uint total_cycle = 0;
     private uint save_timer = 0;
     
+    public MemoryBus memory_bus = new MemoryBus();
+    public VRAMBus video_bus = new VRAMBus();
+
     public void Tick() {
         if (CPU.Stopped) return;
         
@@ -100,8 +103,12 @@ public class GameBoy {
             DMA.Tick();
         }
         
+        joypad.Tick();
+        
         PPU.Tick();
         APU.Tick();
+        
+        TickBuses();
         
         total_cycle++;
         save_timer++;
@@ -112,6 +119,20 @@ public class GameBoy {
         }
     }
 
+    public void TickBuses() {
+        if (memory_bus.BusState == RWState.Read) {
+            memory_bus.Data = ReadMemory(memory_bus.Address);
+        } else {
+            WriteMemory(memory_bus.Address, memory_bus.Data);
+        }
+        
+        if (video_bus.BusState == RWState.Read) {
+            video_bus.Data = ReadMemory(video_bus.Address);
+        } else {
+            WriteMemory(video_bus.Address, video_bus.Data);
+        }
+    }
+    
     public byte ReadMemory(ushort address) {
         ReadMonitor?.Invoke(address);
         
@@ -121,7 +142,7 @@ public class GameBoy {
             case InterruptRegisterAddresses.IE: return CPU.Registers.IE;
             
             // JOYPAD REGISTER
-            case Joypad.RegisterAddress: return joypad.ReadState();
+            case Joypad.RegisterAddress: return joypad.JOYP;
             
             // SERIAL REGISTERS
             case SerialRegisterAddresses.SB: return serial.SB;
@@ -170,13 +191,6 @@ public class GameBoy {
             // INTERRUPT REGISTERS
             case InterruptRegisterAddresses.IF: CPU.Registers.IF = (byte)(value & 0x1F); return;
             case InterruptRegisterAddresses.IE: CPU.Registers.IE = value; return;
-            
-            // JOYPAD REGISTER
-            case Joypad.RegisterAddress: {
-                joypad.select_dpad = ((value & 0x10) == 0);
-                joypad.select_buttons = ((value & 0x20) == 0);
-                return;
-            }
             
             // SERIAL REGISTERS
             case SerialRegisterAddresses.SB: serial.SB = value; return;

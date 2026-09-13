@@ -10,8 +10,11 @@ public enum JoypadButtons {
 
 public class Joypad {
     public const ushort RegisterAddress = 0xFF00;
+
+    public byte JOYP = 0x00;
     
     private GameBoy gameboy;
+    private MemoryBus bus => gameboy.memory_bus;
 
     public Joypad(GameBoy gameboy) => this.gameboy = gameboy;
     
@@ -28,37 +31,40 @@ public class Joypad {
         {JoypadButtons.Start,  false},
         {JoypadButtons.Select, false}
     };
+    
+    public void Tick() {
+        if (bus.Address == RegisterAddress && bus.BusState == RWState.Write) {
+            select_dpad = ((bus.Data & 0x10) == 0);
+            select_buttons = ((bus.Data & 0x20) == 0);
+        } 
+        
+        if (bus.Address == RegisterAddress && bus.BusState == RWState.Read) {
+            byte result = 0xCF;
 
-    public byte ReadState() {
-        byte result = 0xCF;
-        
-        if (select_dpad) {
-            result &= 0xEF;
-            
-            if (button_states[JoypadButtons.Right])  result &= 0xFE;
-            if (button_states[JoypadButtons.Left])   result &= 0xFD;
-            if (button_states[JoypadButtons.Up])     result &= 0xFB;
-            if (button_states[JoypadButtons.Down])   result &= 0xF7;
-        } 
-        if (select_buttons) {
-            result &= 0xDF;
-            
-            if (button_states[JoypadButtons.A])      result &= 0xFE;
-            if (button_states[JoypadButtons.B])      result &= 0xFD;
-            if (button_states[JoypadButtons.Select]) result &= 0xFB;
-            if (button_states[JoypadButtons.Start])  result &= 0xF7;
-        } 
-        
-        return result;
+            if (select_dpad) {
+                result &= 0xEF;
+
+                if (button_states[JoypadButtons.Right]) result &= 0xFE;
+                if (button_states[JoypadButtons.Left]) result &= 0xFD;
+                if (button_states[JoypadButtons.Up]) result &= 0xFB;
+                if (button_states[JoypadButtons.Down]) result &= 0xF7;
+            }
+
+            if (select_buttons) {
+                result &= 0xDF;
+
+                if (button_states[JoypadButtons.A]) result &= 0xFE;
+                if (button_states[JoypadButtons.B]) result &= 0xFD;
+                if (button_states[JoypadButtons.Select]) result &= 0xFB;
+                if (button_states[JoypadButtons.Start]) result &= 0xF7;
+            }
+
+            if (JOYP != result) gameboy.CPU.RequestInterrupt(InterruptMask.Joypad);
+
+            JOYP = result;
+        }
     }
     
-    public void Press(JoypadButtons button) {
-        if (button_states[button]) return;
-        button_states[button] = true;
-        
-        if (gameboy.CPU.Stopped) gameboy.CPU._stopped = false; 
-        gameboy.CPU.RequestInterrupt(InterruptMask.Joypad);
-    }
-
+    public void Press(JoypadButtons button) => button_states[button] = true;
     public void Release(JoypadButtons button) => button_states[button] = false;
 }

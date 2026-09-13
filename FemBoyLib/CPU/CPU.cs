@@ -51,7 +51,12 @@ public class CPU {
     
     private GameBoy gameboy;
 
+    private MemoryBus memory_bus => gameboy.memory_bus;
+    private VRAMBus video_bus => gameboy.video_bus;
+    
     private InterruptMask current_interrupt;
+
+    private SelectedBus last_read_bus = SelectedBus.Memory;
     
     public CPU(GameBoy gameboy) {
         this.gameboy = gameboy;
@@ -60,9 +65,9 @@ public class CPU {
         
         Operations.InterruptServicePipeline = [
             
-            null, null, null, null, 
+            () => {}, () => {}, () => {}, () => {}, 
             
-            null, null,
+            () => {}, () => {},
             () => {
                 if      (InterruptRequested(InterruptMask.VBlank)) current_interrupt = InterruptMask.VBlank;
                 else if (InterruptRequested(InterruptMask.LCD)) current_interrupt = InterruptMask.LCD;
@@ -72,10 +77,10 @@ public class CPU {
                 
                 interrupt_master_enable = false;
             },
-            null, 
+            () => {}, 
             
             
-            null, null, null,
+            () => {}, () => {}, () => {},
             () => { 
                 Registers.SP--;
                 WriteMemory(Registers.SP, (byte)(Registers.PC >> 8)); 
@@ -90,14 +95,14 @@ public class CPU {
                 }
             },
             
-            null, null, null,
+            () => {}, () => {}, () => {},
             () => { 
                 Registers.SP--;
                 WriteMemory(Registers.SP, (byte)(Registers.PC & 0xFF));
             },
 
             
-            null, null, null,
+            () => {}, () => {}, () => {},
             () => { 
                 Registers.IF &= (byte)~(byte)current_interrupt;
                 
@@ -115,47 +120,37 @@ public class CPU {
         ];
     }
 
-    internal byte ReadMemory(ushort address) {
-        // can only access HRAM during DMA transfer
-        if (gameboy.DMA.BusBlocked && (address < 0xFF80 || address > 0xFFFE)) {
-            if (address != PPURegisterAddresses.DMA) {
-                if (gameboy.Model == GameBoyModel.DotMatrix && gameboy.DMA.Source >= 0xC000 && gameboy.DMA.Source <= 0xDFFF) {
-                    return gameboy.DMA.BusValue;
-                }
-
-                return 0xFF;
-            }
-        } 
-        
-        // cannot access VRAM during PPU mode 3
-        if (address >= 0x8000 && address <= 0x9FFF && gameboy.PPU.Mode == (PPUMode)3) return 0xFF;
-        
-        // cannot access OAM during PPU mode 2 or 3
-        if (gameboy.PPU.LCDEnabled && address >= 0xFE00 && address <= 0xFE9F) {
-            if (gameboy.PPU.Mode == PPUMode.OAM_SEARCH_2 || gameboy.PPU.Mode == PPUMode.LCD_TRANSFER_3) return 0xFF;
+    internal void ReadMemory(ushort address) {
+        if (address is >= 0x8000 and <= 0x9FFF) {
+            video_bus.Address = address;
+            video_bus.BusState = RWState.Read;
+            last_read_bus = SelectedBus.Video;
+        } else {
+            memory_bus.Address = address;
+            memory_bus.BusState = RWState.Read;
+            last_read_bus = SelectedBus.Memory;
         }
-
-        return gameboy.ReadMemory(address);
     }
 
-    internal void WriteMemory(ushort address, byte value) {
-        // Same lockouts as above
-        if (gameboy.DMA.BusBlocked && (address < 0xFF80 || address > 0xFFFE)) {
-            if (address != PPURegisterAddresses.DMA) return;
+    internal byte ReadBus() {
+        if (last_read_bus == SelectedBus.Video) {
+            return video_bus.Data;
+        } else {
+            return memory_bus.Data;
         }
+    }
 
-        switch (gameboy.PPU.Mode) {
-            case PPUMode.OAM_SEARCH_2:
-                if (address is >= 0xFE00 and <= 0xFE9F) return; //OAM
-                break;
-            case PPUMode.LCD_TRANSFER_3: {
-                if (address is >= 0x8000 and <= 0x9FFF) return; //VRAM
-                if (address is >= 0xFE00 and <= 0xFE9F) return; //OAM
-                break;
-            }
+    
+    internal void WriteMemory(ushort address, byte value) {
+        if (address is >= 0x8000 and <= 0x9FFF) {
+            video_bus.Address = address;
+            video_bus.BusState = RWState.Write;
+            video_bus.Data = value;
+        } else {
+            memory_bus.Address = address;
+            memory_bus.BusState = RWState.Write;
+            memory_bus.Data = value;
         }
-        
-        gameboy.WriteMemory(address, value);
     }
     
     public void RequestInterrupt(InterruptMask interrupt) {
@@ -164,7 +159,7 @@ public class CPU {
 
     public ConcurrentQueue<OpcodeInfo> LastNOpcodes = new();
     private int track_n_opcodes = 50;
-    public bool track_opcodes = true;
+    public bool track_opcodes = false;
     private uint last_op_total_cycles = 0;
     private uint cycles_since_last_op = 0;
 
@@ -220,12 +215,14 @@ public class CPU {
 
     void OpcodeFetch() {
         switch (t_cycle) {
-            case 0: break; // Stabilize address lines
+            case 0:
+                ReadMemory(Registers.PC);
+                break; // Stabilize address lines
             case 1: break; // Open read gates
             case 2:        // Sample opcode
-                current_opcode = ReadMemory(Registers.PC);
+                current_opcode = ReadBus();
                 ChangedOpcode?.Invoke(current_opcode);
-                //Debug.WriteLine($"${current_opcode:X2} ({Opcodes.opcode_list[current_opcode].op_name}) fetch at cycle {gameboy.total_cycle} (PC: {Registers.PC:X4})");
+                
                 //if (current_opcode == 0x40) wants_pause = true;
                 //if (current_opcode == 0xFF) wants_pause = true;
                 
@@ -245,7 +242,7 @@ public class CPU {
 
     void ExecuteInstruction() {
         if (Operations.current_operation != null && t_cycle < Operations.current_operation.Length) {
-            Operations.current_operation[t_cycle++]?.Invoke();
+            Operations.current_operation[t_cycle++]();
             return;
         }
         
@@ -296,7 +293,6 @@ public class CPU {
             LastNOpcodes.Enqueue(current_op);
             if (LastNOpcodes.Count > track_n_opcodes) LastNOpcodes.TryDequeue(out _);
         }
-        
         
         if (x == 0) {
             if (z == 0) { // Relative jumps, assorted ops
@@ -571,13 +567,7 @@ public class CPU {
                     Operations.current_operation = Operations.JPTaken;
                 
                 else if (y == 1) { // CB PREFIX
-                    int sub_z = gameboy.ReadMemory(Registers.PC) & 0x07;
-
-                    if (sub_z == 6) {
-                        Operations.current_operation = Operations.CBMemory;
-                    } else {
-                        Operations.current_operation = Operations.CBRegister;
-                    }
+                    Operations.current_operation = Operations.CBDispatch;
                 }
                 else if (y == 6) { // DI
                     interrupt_master_enable = false;
