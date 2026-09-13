@@ -63,61 +63,54 @@ public class CPU {
         Registers = new CPURegisters(gameboy);
         Operations = new CPUOperations(gameboy);
         
-        Operations.InterruptServicePipeline = [
-            
-            () => {}, () => {}, () => {}, () => {}, 
-            
-            () => {}, () => {},
-            () => {
-                if      (InterruptRequested(InterruptMask.VBlank)) current_interrupt = InterruptMask.VBlank;
-                else if (InterruptRequested(InterruptMask.LCD)) current_interrupt = InterruptMask.LCD;
-                else if (InterruptRequested(InterruptMask.Timer)) current_interrupt = InterruptMask.Timer;
-                else if (InterruptRequested(InterruptMask.Serial)) current_interrupt = InterruptMask.Serial;
-                else if (InterruptRequested(InterruptMask.Joypad)) current_interrupt = InterruptMask.Joypad;
-                
-                interrupt_master_enable = false;
-            },
-            () => {}, 
-            
-            
-            () => {}, () => {}, () => {},
-            () => { 
-                Registers.SP--;
-                WriteMemory(Registers.SP, (byte)(Registers.PC >> 8)); 
-                
-                if ((Registers.IE & (byte)current_interrupt) == 0) {
+        Operations.InterruptServicePipeline = new Operation(6, [
+            new MicroOp(4,
+                () => {
                     if      (InterruptRequested(InterruptMask.VBlank)) current_interrupt = InterruptMask.VBlank;
                     else if (InterruptRequested(InterruptMask.LCD)) current_interrupt = InterruptMask.LCD;
                     else if (InterruptRequested(InterruptMask.Timer)) current_interrupt = InterruptMask.Timer;
                     else if (InterruptRequested(InterruptMask.Serial)) current_interrupt = InterruptMask.Serial;
                     else if (InterruptRequested(InterruptMask.Joypad)) current_interrupt = InterruptMask.Joypad;
-                    else current_interrupt = 0;
-                }
-            },
-            
-            () => {}, () => {}, () => {},
-            () => { 
-                Registers.SP--;
-                WriteMemory(Registers.SP, (byte)(Registers.PC & 0xFF));
-            },
-
-            
-            () => {}, () => {}, () => {},
-            () => { 
-                Registers.IF &= (byte)~(byte)current_interrupt;
                 
-                Registers.PC = current_interrupt switch {
-                    InterruptMask.VBlank => 0x0040,
-                    InterruptMask.LCD    => 0x0048,
-                    InterruptMask.Timer  => 0x0050,
-                    InterruptMask.Serial => 0x0058,
-                    InterruptMask.Joypad => 0x0060,
-                    _                    => 0x0000
-                };
+                    interrupt_master_enable = false;
+                }),
+            new MicroOp(3,
+                () => {
+                    Registers.SP--;
+                    WriteMemory(Registers.SP, (byte)(Registers.PC >> 8)); 
                 
-                FinishOperation();
-            }
-        ];
+                    if ((Registers.IE & (byte)current_interrupt) == 0) {
+                        if      (InterruptRequested(InterruptMask.VBlank)) current_interrupt = InterruptMask.VBlank;
+                        else if (InterruptRequested(InterruptMask.LCD)) current_interrupt = InterruptMask.LCD;
+                        else if (InterruptRequested(InterruptMask.Timer)) current_interrupt = InterruptMask.Timer;
+                        else if (InterruptRequested(InterruptMask.Serial)) current_interrupt = InterruptMask.Serial;
+                        else if (InterruptRequested(InterruptMask.Joypad)) current_interrupt = InterruptMask.Joypad;
+                        else current_interrupt = 0;
+                    }
+                }),
+            new MicroOp(3,
+                () => {
+                    Registers.SP--;
+                    WriteMemory(Registers.SP, (byte)(Registers.PC & 0xFF));
+                }),
+            
+            new MicroOp(0,
+                () => {
+                    Registers.IF &= (byte)~(byte)current_interrupt;
+                
+                    Registers.PC = current_interrupt switch {
+                        InterruptMask.VBlank => 0x0040,
+                        InterruptMask.LCD    => 0x0048,
+                        InterruptMask.Timer  => 0x0050,
+                        InterruptMask.Serial => 0x0058,
+                        InterruptMask.Joypad => 0x0060,
+                        _                    => 0x0000
+                    };
+                
+                    FinishOperation();
+                }),
+        ]);
+        
     }
 
     internal void ReadMemory(ushort address) {
@@ -240,9 +233,25 @@ public class CPU {
         t_cycle++;
     }
 
+    int wait_after_operation_cycle = 0;
+    int current_operation_enumerator = 0;
+    
     void ExecuteInstruction() {
-        if (Operations.current_operation != null && t_cycle < Operations.current_operation.Length) {
-            Operations.current_operation[t_cycle++]();
+        if (Operations.current_operation != null) {
+            t_cycle++;
+            if (t_cycle-1 < Operations.current_operation.initial_wait) {
+                return;
+            }
+            
+            if (wait_after_operation_cycle > 0) {
+                wait_after_operation_cycle--;
+                return;
+            }
+            current_operation_enumerator++;
+            wait_after_operation_cycle = Operations.current_operation.operations[current_operation_enumerator-1].wait_after;
+            Operations.current_operation.operations[current_operation_enumerator-1].operation();
+            
+            
             return;
         }
         
@@ -253,7 +262,6 @@ public class CPU {
     }
 
     public void FinishOperation() {
-
         if (track_opcodes && Operations.current_operation != Operations.InterruptServicePipeline) {
             current_op.cycles = (uint)(t_cycle + 4);
             current_op.SP_after = Registers.SP;
@@ -261,6 +269,9 @@ public class CPU {
         
         Operations.current_operation = null;
         executing_opcode = false;
+        
+        wait_after_operation_cycle = 0;
+        current_operation_enumerator = 0;
         
         ops++;
         t_cycle = 0;
@@ -273,7 +284,6 @@ public class CPU {
     void DecodeAndBuildExecutionPipeline(byte opcode) {
         Operations.buffer = 0;
         Operations.pointer = 0;
-        
         
         executing_opcode = true;
         t_cycle = 0;
@@ -659,7 +669,7 @@ public class CPU {
     }
     
     void JR_cc(int cc_table_id) {
-        if (cc_table(cc_table_id)) Operations.current_operation = Operations.JRTaken;
+        if (cc_table(cc_table_id)) Operations.current_operation = Operations.JR;
         else Operations.current_operation = Operations.JRFailed;
     }
     

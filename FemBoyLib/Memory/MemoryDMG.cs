@@ -26,7 +26,7 @@ public class DotMatrixRAM : IMemory {
             
             // Cart RAM
             case (>=0xA000 and <= 0xBFFF):
-                return gameboy.Cartridge.Read((ushort)(address));
+                return gameboy.Cartridge.Read(address);
             
             // WRAM
             case (>=0xC000 and <= 0xDFFF):
@@ -69,7 +69,7 @@ public class DotMatrixRAM : IMemory {
         
             // Cart RAM
             case (>= 0xA000 and <= 0xBFFF):
-                gameboy.Cartridge.Write((ushort)(address), value); 
+                gameboy.Cartridge.Write(address, value); 
                 break;
         
             // WRAM
