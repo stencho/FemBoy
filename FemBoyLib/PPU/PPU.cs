@@ -52,8 +52,6 @@ public class PPU {
 
     private ILCD LCD = new DotMatrixLCD();
     
-    
-    
     public PPU(GameBoy gameboy) {
         this.gameboy = gameboy;
         
@@ -65,8 +63,23 @@ public class PPU {
         Array.Copy(frame_buffer_offscreen, frame_buffer, frame_buffer.Length);
     }
 
-    public byte LY = 0x90;
-    public byte LYC = 0x00;
+    private byte _LY = 0x90;
+    private byte _LYC = 0x00;
+
+    public byte LY {
+        get => _LY;
+        set {
+            _LY = value;
+            UpdateLYCCoincidence();
+        }
+    }
+    public byte LYC {
+        get => _LYC;
+        set {
+            _LYC = value;
+            UpdateLYCCoincidence();
+        }
+    }
     
     public byte SCX = 0x00;
     public byte SCY = 0x00;
@@ -91,7 +104,10 @@ public class PPU {
     private byte _STAT = 0x85;
     public byte STAT {
         get => _STAT;
-        set => _STAT = (byte)((value & 0xF8) | (_STAT & 0x07) | 0x80); //protect lower hardware-controlled bits
+        set { 
+            _STAT = (byte)((value & 0xF8) | (_STAT & 0x07) | 0x80); //protect lower hardware-controlled bits
+            HandleSTAT();
+        }
     }
     
     private bool old_stat_line = false;
@@ -101,33 +117,34 @@ public class PPU {
     public PPUMode Mode => mode;
 
     private bool LCD_ON = true;
+    private bool LCD_just_enabled = false;
 
     private bool lcd_startup_scanline = false;
     
     public void LCDOn() {
         dot = 0;
         LY = 0;
-
-        LCD_ON = true;
+        
         lcd_startup_scanline = true;
+        LCD_just_enabled = true;
 
         BGFetcher.Reset();
         oam_search.Reset();
         
-        mode = PPUMode.HBLANK_0;
-        UpdateHardwareSTATBits(mode);
+        SetPPUMode(PPUMode.HBLANK_0);
+        LCD_ON = true;
     }
     public void LCDOff() {
         dot = 0;
-        LY = 0;
+        
+        if ((_STAT & 0x40) == 0) LY = 0;
         
         LCD_ON = false;
 
         BGFetcher.Reset();
         oam_search.Reset();
         
-        mode = PPUMode.HBLANK_0;
-        UpdateHardwareSTATBits(mode);
+        SetPPUMode(PPUMode.HBLANK_0);
         
         Array.Fill(frame_buffer_offscreen, (byte)0x00);
         Array.Fill(frame_buffer, (byte)0x00);
@@ -155,12 +172,12 @@ public class PPU {
                 LY = 0;
                 last_line_was_153 = false;
                 lcd_startup_scanline = false;
-                mode = PPUMode.OAM_SEARCH_2;
+                SetPPUMode(PPUMode.OAM_SEARCH_2);
                 
             } 
             
             if (LY == 144) {
-                mode = PPUMode.VBLANK_1;
+                SetPPUMode(PPUMode.VBLANK_1);
                 BGFetcher.ResetWindowLineCounter();
                 BGFetcher.window_active = false;
                 
@@ -174,7 +191,7 @@ public class PPU {
                 }
             }
             else if (LY < 144) {
-                mode = PPUMode.OAM_SEARCH_2;
+                SetPPUMode(PPUMode.OAM_SEARCH_2);
             }
         }
         
@@ -183,10 +200,10 @@ public class PPU {
                 if (dot < 80) {
                     oam_search.Tick();
                 } else {
-                    mode = PPUMode.LCD_TRANSFER_3;
+                    SetPPUMode(PPUMode.LCD_TRANSFER_3);
                 }
             } else {
-                if (dot == 80) mode = PPUMode.LCD_TRANSFER_3;
+                if (dot == 80) SetPPUMode(PPUMode.LCD_TRANSFER_3);
             }
         } else if (mode == PPUMode.LCD_TRANSFER_3) {
             if (pixels_drawn < 160) {
@@ -231,7 +248,7 @@ public class PPU {
                 SpriteFetcher.Active = false;
                 SpriteFetcher.ClearFIFO();
                 //Console.WriteLine($"LY {LY} DOT {dot-80}");
-                mode = PPUMode.HBLANK_0;
+                SetPPUMode(PPUMode.HBLANK_0);
             }
         }
         
@@ -245,17 +262,21 @@ public class PPU {
             }
         }
         
-        UpdateHardwareSTATBits(mode);
         HandleSTAT();
-        
         dot++;
+        LCD_just_enabled = false;
     }
 
-    public void UpdateHardwareSTATBits(PPUMode mode) {
-        _STAT &= 0xF8;
-        _STAT |= (byte)((byte)mode & 0x03);
-        if (LCDEnabled && LY == LYC) _STAT |= 0x04;
+    void SetPPUMode(PPUMode mode) {
+        this.mode = mode;
         
+        _STAT &= 0xFC;
+        _STAT |= (byte)mode;
+    }
+    
+    void UpdateLYCCoincidence() {
+        if (LCDEnabled && LY == LYC) _STAT |= 0x04;
+        else _STAT &= 0xFB;
     }
     
     void HandleSTAT() {
@@ -264,11 +285,11 @@ public class PPU {
         bool vblank_int_operand = (mode == PPUMode.VBLANK_1) && ((_STAT & 0x10) != 0);
         bool oam_int_operand    = (mode == PPUMode.OAM_SEARCH_2) && ((_STAT & 0x20) != 0);
         bool lyc_int_operand    = (LY == LYC) && ((_STAT & 0x40) != 0);
-
+        
         bool current_stat_line = hblank_int_operand || vblank_int_operand || oam_int_operand || lyc_int_operand;
 
         // Fire LCD interrupt if the STAT line has changed
-        if (!old_stat_line && current_stat_line && !lcd_startup_scanline) {
+        if (!old_stat_line && current_stat_line && !LCD_just_enabled) {
             CPU.RequestInterrupt(InterruptMask.LCD); 
         }
 
