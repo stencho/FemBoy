@@ -190,10 +190,9 @@ public class CPU {
             if (!InterruptPending) return;
             _halted = false;
         }
-
-        if (t_cycle == 0 && gameboy.DMA.Requested) 
-            gameboy.DMA.Start();
         
+        if (t_cycle == 0 && !executing_opcode && gameboy.DMA.Requested) 
+            gameboy.DMA.Start();
         
         // if we're at a 0-cycle, there's an interrupt pending, and we haven't got an instruction ready
         // to execute, then handle the interrupt instead
@@ -207,6 +206,7 @@ public class CPU {
             _ime_enable_delay--;
             if (_ime_enable_delay == 0) interrupt_master_enable = true;
         }
+
         
         // not currently executing an instruction, so fetch the next one
         if (!executing_opcode) {
@@ -225,7 +225,7 @@ public class CPU {
             case 2:        // Sample opcode
                 current_opcode = ReadMemory(Registers.PC);
                 ChangedOpcode?.Invoke(current_opcode);
-                
+                //Debug.WriteLine($"${current_opcode:X2} ({Opcodes.opcode_list[current_opcode].op_name}) fetch at cycle {gameboy.total_cycle} (PC: {Registers.PC:X4})");
                 //if (current_opcode == 0x40) wants_pause = true;
                 //if (current_opcode == 0xFF) wants_pause = true;
                 
@@ -235,6 +235,8 @@ public class CPU {
                 break; 
             case 3:        // Execute instruction
                 DecodeAndBuildExecutionPipeline(current_opcode); //Mansell decoding function
+               
+                if (Operations.current_operation == Operations.PushReg16) Registers.SP--;
                 return;
         }
 
@@ -255,7 +257,10 @@ public class CPU {
 
     public void FinishOperation() {
 
-        if (track_opcodes && Operations.current_operation != Operations.InterruptServicePipeline) current_op.cycles = (uint)(t_cycle+4);
+        if (track_opcodes && Operations.current_operation != Operations.InterruptServicePipeline) {
+            current_op.cycles = (uint)(t_cycle + 4);
+            current_op.SP_after = Registers.SP;
+        }
         
         Operations.current_operation = null;
         executing_opcode = false;
