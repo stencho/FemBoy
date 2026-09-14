@@ -79,8 +79,7 @@ public class GameBoy {
     internal uint total_cycle = 0;
     private uint save_timer = 0;
     
-    public MemoryBus memory_bus = new MemoryBus();
-    public VRAMBus video_bus = new VRAMBus();
+    public MemoryBus bus = new MemoryBus();
 
     public void Tick() {
         if (CPU.Stopped) return;
@@ -120,16 +119,10 @@ public class GameBoy {
     }
 
     public void TickBuses() {
-        if (memory_bus.BusState == RWState.Read) {
-            memory_bus.Data = ReadMemory(memory_bus.Address);
+        if (bus.BusState == RWState.Read) {
+            bus.Data = ReadMemory(bus.Address);
         } else {
-            WriteMemory(memory_bus.Address, memory_bus.Data);
-        }
-        
-        if (video_bus.BusState == RWState.Read) {
-            video_bus.Data = ReadMemory(video_bus.Address);
-        } else {
-            WriteMemory(video_bus.Address, video_bus.Data);
+            WriteMemory(bus.Address, bus.Data);
         }
     }
     

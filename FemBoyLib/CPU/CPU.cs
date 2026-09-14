@@ -51,12 +51,9 @@ public class CPU {
     
     private GameBoy gameboy;
 
-    private MemoryBus memory_bus => gameboy.memory_bus;
-    private VRAMBus video_bus => gameboy.video_bus;
+    private MemoryBus bus => gameboy.bus;
     
     private InterruptMask current_interrupt;
-
-    private SelectedBus last_read_bus = SelectedBus.Memory;
     
     public CPU(GameBoy gameboy) {
         this.gameboy = gameboy;
@@ -114,36 +111,19 @@ public class CPU {
     }
 
     internal void ReadMemory(ushort address) {
-        if (address is >= 0x8000 and <= 0x9FFF) {
-            video_bus.Address = address;
-            video_bus.BusState = RWState.Read;
-            last_read_bus = SelectedBus.Video;
-        } else {
-            memory_bus.Address = address;
-            memory_bus.BusState = RWState.Read;
-            last_read_bus = SelectedBus.Memory;
-        }
+        bus.Address = address;
+        bus.BusState = RWState.Read;
     }
 
-    internal byte ReadBus() {
-        if (last_read_bus == SelectedBus.Video) {
-            return video_bus.Data;
-        } else {
-            return memory_bus.Data;
-        }
+    internal byte ReadBus() { 
+        return bus.Data;
     }
 
     
     internal void WriteMemory(ushort address, byte value) {
-        if (address is >= 0x8000 and <= 0x9FFF) {
-            video_bus.Address = address;
-            video_bus.BusState = RWState.Write;
-            video_bus.Data = value;
-        } else {
-            memory_bus.Address = address;
-            memory_bus.BusState = RWState.Write;
-            memory_bus.Data = value;
-        }
+        bus.Address = address;
+        bus.BusState = RWState.Write;
+        bus.Data = value;
     }
     
     public void RequestInterrupt(InterruptMask interrupt) {
@@ -247,6 +227,7 @@ public class CPU {
                 wait_after_operation_cycle--;
                 return;
             }
+            
             current_operation_enumerator++;
             wait_after_operation_cycle = Operations.current_operation.operations[current_operation_enumerator-1].wait_after;
             Operations.current_operation.operations[current_operation_enumerator-1].operation();
