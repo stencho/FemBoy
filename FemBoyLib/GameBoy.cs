@@ -106,8 +106,8 @@ public class GameBoy {
         
         PPU.Tick();
         APU.Tick();
-        
-        TickBuses();
+
+        RAM.Tick();
         
         total_cycle++;
         save_timer++;
@@ -115,14 +115,6 @@ public class GameBoy {
             save_timer = 0;
             if (Cartridge.HasBattery && !SaveGame.CurrentlySaving) 
                 Cartridge.Mapper.SaveRAM();
-        }
-    }
-
-    public void TickBuses() {
-        if (bus.BusState == RWState.Read) {
-            bus.Data = ReadMemory(bus.Address);
-        } else {
-            WriteMemory(bus.Address, bus.Data);
         }
     }
     
@@ -189,6 +181,13 @@ public class GameBoy {
             case SerialRegisterAddresses.SB: serial.SB = value; return;
             case SerialRegisterAddresses.SC: serial.SC = value; return;
             
+            // JOYPAD REGISTER
+            case Joypad.RegisterAddress: {
+                joypad.select_dpad = ((value & 0x10) == 0);
+                joypad.select_buttons = ((value & 0x20) == 0);
+                return;
+            }
+
             // PPU REGISTERS
             case PPURegisterAddresses.LCDC: {
                 bool lcd_old = PPU.LCDEnabled;

@@ -3,6 +3,7 @@ namespace FemBoy.Memory;
 public class DotMatrixRAM : IMemory {
     private GameBoy gameboy;
     private CPU CPU => gameboy.CPU;
+    private MemoryBus bus => gameboy.bus;
 
     public DotMatrixRAM(GameBoy gameboy) {
         this.gameboy = gameboy;
@@ -13,7 +14,27 @@ public class DotMatrixRAM : IMemory {
     public readonly byte[] OAM =  new byte[0x00A0]; // 160 bytes object attribute memory
     public readonly byte[] HRAM = new byte[0x007F]; // 127 byte high RAM/zero page
 
+
+    public void Tick() {
+        if (bus.Address is >= 0xFF00 and <= 0xFF7F) return;
+        
+        if (bus.BusState == RWState.Read) {
+            bus.Data = Read(bus.Address);
+        } else {
+            Write(bus.Address, bus.Data);
+        }
+    }
     
+    public bool WithinVRAM(ushort address) => (address is >= 0x8000 and <= 0x9FFF);
+    
+    public byte ReadVRAM(ushort address) {
+        return VRAM[address - 0x8000];
+    }
+
+    public void WriteVRAM(ushort address, byte value) {
+        VRAM[address - 0x8000] = value;
+    }
+
     public byte Read(ushort address) {
         switch (address) {
             // Cart ROM
