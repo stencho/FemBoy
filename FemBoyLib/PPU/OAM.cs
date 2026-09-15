@@ -9,18 +9,11 @@ public class OAMSearch {
     private int index = 0;
     private int LY = 0;
     
-    public string OAM_List = "";
-    
     public OAMSearch(GameBoy gameboy) {
         this.gameboy = gameboy;
     }
     
     public void Start(int LY) {
-        OAM_List = "";
-        foreach (Sprite s in visible_sprites) {
-            OAM_List += $" [{s.index}] [Pos] {s.X}x{s.Y}\n";
-        } 
-        
         visible_sprites.Clear();
         index = 0;
         this.LY = LY;

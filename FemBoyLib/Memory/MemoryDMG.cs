@@ -3,7 +3,8 @@ namespace FemBoy.Memory;
 public class DotMatrixRAM : IMemory {
     private GameBoy gameboy;
     private CPU CPU => gameboy.CPU;
-    private MemoryBus bus => gameboy.bus;
+    private MemoryBus MemoryBus => gameboy.memory_bus;
+    private VideoBus VideoBus => gameboy.video_bus;
 
     public DotMatrixRAM(GameBoy gameboy) {
         this.gameboy = gameboy;
@@ -14,18 +15,26 @@ public class DotMatrixRAM : IMemory {
     public readonly byte[] OAM =  new byte[0x00A0]; // 160 bytes object attribute memory
     public readonly byte[] HRAM = new byte[0x007F]; // 127 byte high RAM/zero page
 
-
-    public void Tick() {
-        if (bus.Address is >= 0xFF00 and <= 0xFF7F) return;
-        
-        if (bus.BusState == RWState.Read) {
-            bus.Data = Read(bus.Address);
+    public void HandleBusRW() {
+        if (MemoryBus.BusState == RWState.Read) {
+            MemoryBus.Data = Read(MemoryBus.Address);
         } else {
-            Write(bus.Address, bus.Data);
+            Write(MemoryBus.Address, MemoryBus.Data);
+        }
+    }
+    public void HandleVideoBusRW() {
+        if (VideoBus.BusState == RWState.Read) {
+            VideoBus.Data = Read(VideoBus.Address);
+        } else {
+            Write(VideoBus.Address, VideoBus.Data);
         }
     }
     
     public bool WithinVRAM(ushort address) => (address is >= 0x8000 and <= 0x9FFF);
+    
+    public bool WithinOAM(ushort address) => (address is >=0xFE00 and <= 0xFE9F);
+    public bool WithinHRAM(ushort address) => (address is >=0xFF80 and <= 0xFFFE);
+    
     
     public byte ReadVRAM(ushort address) {
         return VRAM[address - 0x8000];

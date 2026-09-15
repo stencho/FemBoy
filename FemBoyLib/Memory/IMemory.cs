@@ -1,9 +1,12 @@
 namespace FemBoy;
 
 public interface IMemory {
-    public void Tick();
+    public void HandleBusRW();
+    public void HandleVideoBusRW();
     
     public bool WithinVRAM(ushort address);
+    public bool WithinOAM(ushort address);
+    public bool WithinHRAM(ushort address);
     
     public byte ReadVRAM(ushort address);
     public void WriteVRAM(ushort address, byte value);

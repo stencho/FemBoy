@@ -16,11 +16,14 @@ public class GameBoy {
     public const int DOTS_PER_SCANLINE = 456;
     
     public GameBoyModel Model = GameBoyModel.DotMatrix;
-
     
     private bool double_speed_mode = false;
     
     public CPU CPU;
+    
+    public MemoryBus memory_bus;
+    public VideoBus video_bus;
+    
     public IMemory RAM;
     public PPU PPU;
     public DMA DMA;
@@ -32,13 +35,15 @@ public class GameBoy {
     
     public Cartridge Cartridge;
 
-    public Action<ushort, byte>? WriteMonitor;
-    public Action<ushort>? ReadMonitor;
     
     public GameBoy(GameBoyModel model = GameBoyModel.DotMatrix) {
         Model = model;
         
         CPU = new CPU(this);
+        
+        memory_bus = new MemoryBus(this);
+        video_bus = new VideoBus(this);
+        
         PPU = new PPU(this);
         DMA = new DMA(this);
         RAM = new DotMatrixRAM(this);
@@ -60,7 +65,6 @@ public class GameBoy {
         Timer.TIMA = 0x00;
         Timer.TMA = 0x00;
         Timer.TAC = 0x00;
-        
     }
     
     public void LoadROM(string filename) {
@@ -76,40 +80,47 @@ public class GameBoy {
         Cartridge = new Cartridge(this, rom_array);
     }
 
-    internal uint total_cycle = 0;
+    internal uint total_cycles = 0;
     private uint save_timer = 0;
-    
-    public MemoryBus bus = new MemoryBus();
 
     public void Tick() {
         if (CPU.Stopped) return;
         
         if (Model == GameBoyModel.Color && CPU.Registers.DoubleSpeed) {
             CPU.Tick();
+            
+            memory_bus.Tick();
+            video_bus.Tick();
+            
             Timer.Tick();
             serial.Tick();
             DMA.Tick();
             
             CPU.Tick();
+            
+            memory_bus.Tick();
+            video_bus.Tick();
+            
             Timer.Tick();
             serial.Tick();
             DMA.Tick();
             
         } else {
             CPU.Tick();
-            Timer.Tick();
-            serial.Tick();
             DMA.Tick();
+            
+            Timer.Tick();
+            
+            memory_bus.Tick();
+            video_bus.Tick();
+            
+            serial.Tick();
         }
-        
-        joypad.Tick();
         
         PPU.Tick();
         APU.Tick();
-
-        RAM.Tick();
         
-        total_cycle++;
+        total_cycles++;
         save_timer++;
         if (save_timer > CLOCK_SPEED_HZ) {
             save_timer = 0;
@@ -119,8 +130,6 @@ public class GameBoy {
     }
     
     public byte ReadMemory(ushort address) {
-        ReadMonitor?.Invoke(address);
-        
         switch (address) {
             // INTERRUPT REGISTERS
             case InterruptRegisterAddresses.IF: return (byte)(CPU.Registers.IF | 0xE0);
@@ -170,7 +179,6 @@ public class GameBoy {
     }
     
     public void WriteMemory(ushort address, byte value) {
-        WriteMonitor?.Invoke(address, value);
         
         switch (address) {
             // INTERRUPT REGISTERS

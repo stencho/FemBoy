@@ -1,17 +1,120 @@
 namespace FemBoy;
 
-public enum RWState { Read, Write }
+public enum RWState { Read, Write, Idle }
 
 public enum MemoryBusDriver { CPU, DMA }
-public enum VRAMBusDriver { CPU, PPU }
+public enum VideoBusDriver { CPU, PPU }
 
-public enum SelectedBus { Memory, Video }
+public enum BusTarget {
+    PPU, Timer, Serial, DMA, Joypad, APU, Memory
+}
 
-public class MemoryBus {
+public enum SelectedBus { Memory, Video, HRAMSideChannel }
+
+public interface IBus {
     public ushort Address { get; set; }
     public byte Data { get; set; }
     
     public RWState BusState { get; set; }
-    public MemoryBusDriver RAMDriver { get; set; } = MemoryBusDriver.CPU;
-    public VRAMBusDriver VRAMDriver { get; set; } = VRAMBusDriver.CPU;
+    public BusTarget Target { get; set; }
+    
+    public BusTarget FindBusTarget();
+    public void Tick();
 }
+
+public class HRAMSideChannel {
+    public ushort Address { get; set; }
+    public byte Data { get; set; }
+    public RWState BusState { get; set; } = RWState.Idle;
+}
+
+public class MemoryBus : IBus {
+    private GameBoy gameboy;
+    
+    public MemoryBus(GameBoy gameboy) => this.gameboy = gameboy;
+
+    public HRAMSideChannel hram_side_channel = new HRAMSideChannel();
+    
+    public ushort Address { get; set; }
+    public byte Data { get; set; }
+    
+    public BusTarget Target { get; set; }
+    public RWState BusState { get; set; }
+    
+    public MemoryBusDriver Driver { get; set; } = MemoryBusDriver.CPU;
+    
+    public BusTarget FindBusTarget() {
+        switch (Address) {
+            case SerialRegisterAddresses.SB or SerialRegisterAddresses.SC: return BusTarget.Serial; 
+            case >= TimerRegisterAddresses.DIV and <= TimerRegisterAddresses.TAC: return BusTarget.Timer; 
+            case Joypad.RegisterAddress: return BusTarget.Joypad;
+            case PPURegisterAddresses.DMA: return BusTarget.DMA;
+            case >= PPURegisterAddresses.LCDC and <= PPURegisterAddresses.WX: return BusTarget.PPU;
+            default: return BusTarget.Memory;
+        }
+    }
+    
+    public void Tick() {
+        if (hram_side_channel.BusState != RWState.Idle) {
+            if (hram_side_channel.BusState == RWState.Read) {
+                hram_side_channel.Data = gameboy.RAM.Read(hram_side_channel.Address);
+            } else {
+                gameboy.RAM.Write(hram_side_channel.Address, hram_side_channel.Data);
+            }
+            
+            hram_side_channel.BusState = RWState.Idle;
+        }
+        
+        if (BusState == RWState.Idle || Target == BusTarget.Timer) return;
+        
+        switch (Target) {
+            case BusTarget.PPU:
+                gameboy.PPU.HandleBusRW();
+                break;
+            case BusTarget.Timer:
+                //gameboy.Timer.HandleBusRW();
+                break;
+            case BusTarget.Serial:
+                gameboy.serial.HandleBusRW();
+                break;
+            case BusTarget.DMA:
+                gameboy.DMA.HandleBusRW();
+                break;
+            case BusTarget.Joypad:
+                gameboy.joypad.HandleBusRW();
+                break;
+            case BusTarget.APU:
+                break;
+            case BusTarget.Memory:
+                gameboy.RAM.HandleBusRW();
+                break;
+        }
+
+        BusState = RWState.Idle;
+    }
+}
+
+public class VideoBus : IBus {
+    private GameBoy gameboy;
+    
+    public VideoBus(GameBoy gameboy) => this.gameboy = gameboy;
+    
+    public ushort Address { get; set; }
+    public byte Data { get; set; }
+    
+    public BusTarget Target { get; set; }
+    public RWState BusState { get; set; }
+    
+    public VideoBusDriver Driver { get; set; } = VideoBusDriver.CPU;
+
+    public BusTarget FindBusTarget() { return BusTarget.Memory; }
+    
+    public void Tick() {
+        if (BusState == RWState.Idle) return;
+        
+        gameboy.RAM.HandleVideoBusRW();
+        
+        BusState = RWState.Idle;
+    }
+}
+

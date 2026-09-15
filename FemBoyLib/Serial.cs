@@ -20,7 +20,7 @@ class NullDevice : ISerialDevice {
 
 public class Serial {
     private GameBoy gameboy;
-    
+    private MemoryBus MemoryBus => gameboy.memory_bus;
     ISerialDevice connected_device = new NullDevice();
 
     private bool transfer_active = false;
@@ -54,6 +54,17 @@ public class Serial {
         this.gameboy = gameboy;
     }
 
+    public void HandleBusRW() {
+        if (MemoryBus.BusState == RWState.Write) {
+            if (MemoryBus.Address == SerialRegisterAddresses.SB) SB = MemoryBus.Data;
+            if (MemoryBus.Address == SerialRegisterAddresses.SC) SC = MemoryBus.Data;
+        }
+        if (MemoryBus.BusState == RWState.Read) {
+            if (MemoryBus.Address == SerialRegisterAddresses.SB) MemoryBus.Data = SB;
+            if (MemoryBus.Address == SerialRegisterAddresses.SC) MemoryBus.Data = SC;
+        }
+    }
+    
     public void Tick() {
         if (!transfer_active) return;
 

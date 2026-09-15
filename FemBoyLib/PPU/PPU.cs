@@ -45,6 +45,8 @@ public class PPU {
     
     private GameBoy gameboy;
     private CPU CPU => gameboy.CPU;
+    MemoryBus MemoryBus => gameboy.memory_bus;
+    VideoBus VideoBus => gameboy.video_bus;
 
     public BGFetcher BGFetcher;
     public SpriteFetcher SpriteFetcher;
@@ -151,6 +153,53 @@ public class PPU {
     }
 
     private bool last_line_was_153 = false;
+
+    public void HandleBusRW() {
+        if (MemoryBus.BusState == RWState.Write) {
+            switch (MemoryBus.Address) {
+                case PPURegisterAddresses.LCDC: 
+                    bool lcd_old = LCDEnabled;
+                    LCDC = MemoryBus.Data;
+            
+                    // TURN ON LCD
+                    if (LCDEnabled && !lcd_old) {
+                        LCDOn();
+                    }
+            
+                    // TURN OFF LCD
+                    if (!LCDEnabled && lcd_old) {
+                        LCDOff();
+                    }
+                    break;
+                case PPURegisterAddresses.STAT: STAT = MemoryBus.Data; break;
+                case PPURegisterAddresses.SCY: SCY = MemoryBus.Data; break;
+                case PPURegisterAddresses.SCX: SCX = MemoryBus.Data; break;
+                case PPURegisterAddresses.LY: LY = 0x00; break;
+                case PPURegisterAddresses.LYC: LYC = MemoryBus.Data; break;
+                case PPURegisterAddresses.BGP: BGP = MemoryBus.Data; break;
+                case PPURegisterAddresses.OBP0: OBP0 = MemoryBus.Data; break;
+                case PPURegisterAddresses.OBP1: OBP1 = MemoryBus.Data; break;
+                case PPURegisterAddresses.WX: WX = MemoryBus.Data; break;
+                case PPURegisterAddresses.WY: WY = MemoryBus.Data; break;
+            }
+        }
+        
+        if (MemoryBus.BusState == RWState.Read) {
+            switch (MemoryBus.Address) {
+                case PPURegisterAddresses.LCDC: MemoryBus.Data = LCDC; break;
+                case PPURegisterAddresses.STAT: MemoryBus.Data = STAT; break;
+                case PPURegisterAddresses.SCY: MemoryBus.Data = SCY; break;
+                case PPURegisterAddresses.SCX: MemoryBus.Data = SCX; break;
+                case PPURegisterAddresses.LY:  MemoryBus.Data = LY;  break;
+                case PPURegisterAddresses.LYC: MemoryBus.Data = LYC; break;
+                case PPURegisterAddresses.BGP: MemoryBus.Data = BGP; break;
+                case PPURegisterAddresses.OBP0: MemoryBus.Data = OBP0; break;
+                case PPURegisterAddresses.OBP1: MemoryBus.Data = OBP1; break;
+                case PPURegisterAddresses.WX: MemoryBus.Data = WX; break;
+                case PPURegisterAddresses.WY: MemoryBus.Data = WY; break;
+            }
+        }
+    }
     
     public void Tick() {
         if (!LCD_ON) return;
@@ -269,6 +318,11 @@ public class PPU {
 
     void SetPPUMode(PPUMode mode) {
         this.mode = mode;
+
+        if (mode == PPUMode.LCD_TRANSFER_3)
+            VideoBus.Driver = VideoBusDriver.PPU;
+        else
+            VideoBus.Driver = VideoBusDriver.CPU;
         
         _STAT &= 0xFC;
         _STAT |= (byte)mode;

@@ -4,13 +4,12 @@ namespace FemBoy;
 
 public class DMA {
     GameBoy gameboy;
+    MemoryBus MemoryBus => gameboy.memory_bus;
+    
     public DMA(GameBoy gameboy) => this.gameboy = gameboy;
     
     public bool Active { get; set; } = false;
     public bool Requested { get; set; } = false;
-    
-    public bool BusBlocked { get; private set; } = false;
-    
     
     private ushort source;
     private ushort requested_source;
@@ -20,8 +19,6 @@ public class DMA {
     
     private bool read_phase = true;
     public bool ReadPhase => read_phase;
-    private byte buffered_value = 0x00;
-    public byte BusValue => buffered_value;
 
     public ushort Source => source;
     
@@ -40,7 +37,31 @@ public class DMA {
         cycle_counter = 5;
         read_phase = true;
         source = requested_source;
+        MemoryBus.Driver = MemoryBusDriver.DMA;
     }
+
+    public void HandleBusRW() {
+        if (MemoryBus.BusState == RWState.Write) {
+            Request(MemoryBus.Data);    
+        }
+        
+        if (MemoryBus.BusState == RWState.Read) {
+            MemoryBus.Data = Register;
+        }
+    }
+    
+    void ReadMemory(ushort address) {
+        MemoryBus.Address = address;
+        MemoryBus.BusState = RWState.Read;
+        MemoryBus.Target = BusTarget.Memory;
+    }
+
+    byte ReadBus() {
+        if (MemoryBus.Driver == MemoryBusDriver.CPU) {Debugger.Break();}
+        return MemoryBus.Data;
+    }
+
+    private byte buffer = 0;
     
     public void Tick() {
         if (!Active) return;
@@ -53,12 +74,15 @@ public class DMA {
         cycle_counter = 1;
 
         if (read_phase) {
-            if ((source + rw_index) >= 0xFE00) buffered_value = gameboy.RAM.Read((ushort)((source - 0x2000) + rw_index));
-            else buffered_value = gameboy.RAM.Read((ushort)(source + rw_index));
             
-            BusBlocked = true;
+            //MemoryBus.Target = BusTarget.Memory;
+            
+            if ((source + rw_index) >= 0xFE00) ReadMemory((ushort)((source - 0x2000) + rw_index));
+            else ReadMemory((ushort)(source + rw_index));
+
+            //gameboy.CPU.wants_pause = true;
         } else {
-            gameboy.RAM.Write((ushort)(0xFE00 + rw_index), buffered_value);
+            gameboy.RAM.Write((ushort)(0xFE00 + rw_index), ReadBus());
             rw_index++;
         }
 
@@ -66,7 +90,7 @@ public class DMA {
         
         if (rw_index == 160) {
             Active = false;
-            BusBlocked = false;
+            MemoryBus.Driver = MemoryBusDriver.CPU;
         }
     }
 }

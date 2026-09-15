@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 namespace FemBoy;
@@ -12,9 +13,11 @@ public static class TimerRegisterAddresses {
 public class Timer {
     private GameBoy gameboy;
     CPU CPU => gameboy.CPU;
+    MemoryBus MemoryBus => gameboy.memory_bus;
     
     public Timer(GameBoy gameboy) => this.gameboy = gameboy;
-    
+
+    private bool TIMA_reload_pending_last_tick;
     public bool ReloadPending => TIMA_reload_pending;
     private bool TIMA_reload_pending = false;
     private int TIMA_reload_delay = 0;
@@ -29,28 +32,27 @@ public class Timer {
     private byte _TMA = 0x00;
     public byte TIMA {
         get {
-            if (TIMA_reload_pending && TIMA_reload_delay < 3) {
-                return 0x00;
-            }
+            if (TIMA_reload_pending)  return 0x00;
             return _TIMA;
         }
         set {
-            if (TIMA_reload_pending) {
-                if (TIMA_reload_delay < 3) {
-                    _TIMA = value;
-                    TIMA_reload_pending = false;
-                }
+            if (!TIMA_reload_pending && !TIMA_reload_pending_last_tick) {
+                _TIMA = value;
                 return;
             }
-            _TIMA = value;
+            
+            if (TIMA_reload_pending && TIMA_reload_pending_last_tick) {
+                _TIMA = value;
+                TIMA_reload_pending = false;
+            }
         }
     }
 
     public byte TMA {
         get => _TMA;
         set {
-            _TMA = value;
-            if (TIMA_reload_pending && TIMA_reload_delay == 3) {
+            _TMA = value; 
+            if (!TIMA_reload_pending && TIMA_reload_pending_last_tick) {
                 _TIMA = _TMA;
             }
         }
@@ -61,33 +63,74 @@ public class Timer {
     public void DebugSetDivider(ushort value) {
         divider = value;
     }
+
+    public void HandleBusR() {
+        if (MemoryBus.BusState == RWState.Read) {
+            switch (MemoryBus.Address) {
+                case TimerRegisterAddresses.DIV:
+                    MemoryBus.Data = DIV;
+                    break;
+                case TimerRegisterAddresses.TIMA:
+                    MemoryBus.Data = TIMA;
+                    break;
+                case TimerRegisterAddresses.TMA:
+                    MemoryBus.Data = TMA;
+                    break;
+                case TimerRegisterAddresses.TAC:
+                    MemoryBus.Data = (byte)(TAC | 0xF8);
+                    break;
+            }
+            MemoryBus.BusState = RWState.Idle;
+        }
+    }
+    
+    public void HandleBusW() {
+        if (MemoryBus.BusState == RWState.Write) {
+            switch (MemoryBus.Address) {
+                case TimerRegisterAddresses.DIV:
+                    ResetDivider();
+                    break;
+                case TimerRegisterAddresses.TIMA:
+                    TIMA = MemoryBus.Data;
+                    break;
+                case TimerRegisterAddresses.TMA:
+                    TMA = MemoryBus.Data;
+                    break;
+                case TimerRegisterAddresses.TAC:
+                    WriteTAC(MemoryBus.Data);
+                    break;
+            }
+            MemoryBus.BusState = RWState.Idle;
+        }
+    }
     
     public void Tick() {
+        if (MemoryBus.Target == BusTarget.Timer) HandleBusW();
+        
         bool old_timer_signal = GetTimerSignal();
         divider++;
         bool timer_signal = GetTimerSignal();
+        if (old_timer_signal && !timer_signal) IncrementTIMA();
 
-        
-        if (old_timer_signal && !timer_signal) {
-            IncrementTIMA();
-        }
-    
+        TIMA_reload_pending_last_tick = TIMA_reload_pending;
         if (TIMA_reload_pending) {
-            TIMA_reload_delay++;
-        
             if (TIMA_reload_delay == 1) {
-                CPU.RequestInterrupt(InterruptMask.Timer); 
+                CPU.RequestInterrupt(InterruptMask.Timer);
             }
-        
-            if (TIMA_reload_delay == 3) {
-                _TIMA = _TMA;
+
+            if (TIMA_reload_delay == 2) {
             }
-        
-            if (TIMA_reload_delay >= 4) {
+            
+            if (TIMA_reload_delay > 4) {
+                _TIMA = _TMA; 
                 TIMA_reload_pending = false;
-                TIMA_reload_delay = 0;
+                TIMA_reload_delay = 1;
             }
+            
+            TIMA_reload_delay++;
         }
+        
+        if (MemoryBus.Target == BusTarget.Timer) HandleBusR();
     }
 
 
@@ -111,7 +154,7 @@ public class Timer {
         _TIMA++;
         if (_TIMA == 0x00) {
             TIMA_reload_pending = true;
-            TIMA_reload_delay = 0;
+            TIMA_reload_delay = 1;
         }
     }
 
@@ -124,7 +167,7 @@ public class Timer {
             3 => 7,  // Clock / 256
             _ => 0
         };
-        return (((divider) >> bit) & 1) == 1;
+        return (((divider) >> bit) & 1) != 0;
     }
 }
 

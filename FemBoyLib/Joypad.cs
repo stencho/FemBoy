@@ -14,7 +14,7 @@ public class Joypad {
     public byte JOYP = 0x00;
     
     private GameBoy gameboy;
-    private MemoryBus bus => gameboy.memory_bus;
+    private MemoryBus MemoryBus => gameboy.memory_bus;
 
     public Joypad(GameBoy gameboy) => this.gameboy = gameboy;
     
@@ -31,14 +31,14 @@ public class Joypad {
         {JoypadButtons.Start,  false},
         {JoypadButtons.Select, false}
     };
-    
-    public void Tick() {
-        if (bus.Address == RegisterAddress && bus.BusState == RWState.Write) {
-            select_dpad = ((bus.Data & 0x10) == 0);
-            select_buttons = ((bus.Data & 0x20) == 0);
-        } 
-        
-        if (bus.Address == RegisterAddress && bus.BusState == RWState.Read) {
+
+    public void HandleBusRW() {
+        if (MemoryBus.Address == RegisterAddress && MemoryBus.BusState == RWState.Write) {
+            select_dpad = ((MemoryBus.Data & 0x10) == 0);
+            select_buttons = ((MemoryBus.Data & 0x20) == 0);
+        }
+
+        if (MemoryBus.Address == RegisterAddress && MemoryBus.BusState == RWState.Read) {
             byte result = 0xCF;
 
             if (select_dpad) {
@@ -62,9 +62,11 @@ public class Joypad {
             if (JOYP != result) gameboy.CPU.RequestInterrupt(InterruptMask.Joypad);
 
             JOYP = result;
+
+            MemoryBus.Data = JOYP;
         }
     }
-    
+        
     public void Press(JoypadButtons button) => button_states[button] = true;
     public void Release(JoypadButtons button) => button_states[button] = false;
 }

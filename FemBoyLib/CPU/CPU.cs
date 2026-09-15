@@ -39,6 +39,8 @@ public class CPU {
     public bool InterruptRequested(InterruptMask interrupt) => (Registers.IE & Registers.IF & (byte)interrupt) != 0;
     public bool InterruptPending => (Registers.IE & Registers.IF & 0x1F) != 0;
 
+    public void RequestInterrupt(InterruptMask interrupt) { Registers.IF |= (byte)interrupt; }
+    
     public Action<byte>? ChangedOpcode;
     
     internal byte t_cycle = 0;
@@ -51,9 +53,14 @@ public class CPU {
     
     private GameBoy gameboy;
 
-    private MemoryBus bus => gameboy.bus;
+    private MemoryBus memory_bus => gameboy.memory_bus;
+    private VideoBus video_bus => gameboy.video_bus;
+    public SelectedBus selected_bus = SelectedBus.Memory;
     
     private InterruptMask current_interrupt;
+    
+    public Action<ushort, byte>? WriteMonitor;
+    public Action<ushort>? ReadMonitor;
     
     public CPU(GameBoy gameboy) {
         this.gameboy = gameboy;
@@ -109,29 +116,110 @@ public class CPU {
         ]);
         
     }
-
+    
     internal void ReadMemory(ushort address) {
-        bus.Address = address;
-        bus.BusState = RWState.Read;
+        ReadMonitor?.Invoke(address);
+        
+        if (address == InterruptRegisterAddresses.IE) {
+            memory_bus.Data = Registers.IE;
+            return;
+        }
+        if (address == InterruptRegisterAddresses.IF) {
+            memory_bus.Data = Registers.IF;
+            return;
+        }
+
+        if (gameboy.RAM.WithinVRAM(address)) {
+            if (video_bus.Driver != VideoBusDriver.CPU)
+                return;
+
+            video_bus.Address = address;
+            video_bus.BusState = RWState.Read;
+            
+            selected_bus = SelectedBus.Video;
+            return;
+        }
+
+        if (memory_bus.Driver == MemoryBusDriver.DMA && gameboy.RAM.WithinHRAM(address)) {
+            memory_bus.hram_side_channel.Address = address;
+            memory_bus.hram_side_channel.BusState = RWState.Read;
+            selected_bus = SelectedBus.HRAMSideChannel;
+            return;
+        }
+        
+        if (gameboy.RAM.WithinOAM(address) && gameboy.PPU.Mode is PPUMode.LCD_TRANSFER_3 or PPUMode.OAM_SEARCH_2)
+            return;
+        
+        memory_bus.Address = address;
+        memory_bus.BusState = RWState.Read;
+        
+        memory_bus.Target = memory_bus.FindBusTarget();
+        
+        selected_bus = SelectedBus.Memory;
     }
 
-    internal byte ReadBus() { 
-        return bus.Data;
+    internal byte ReadBus() {
+        if (selected_bus == SelectedBus.HRAMSideChannel) {
+            return memory_bus.hram_side_channel.Data;
+            
+        } else if (selected_bus == SelectedBus.Memory) {
+            //if (memory_bus.Driver != MemoryBusDriver.CPU) return 0xFF;
+            return memory_bus.Data;
+            
+        } else {
+            //if (video_bus.Driver != VideoBusDriver.CPU) return 0xFF;
+            return video_bus.Data;
+        }
     }
-
     
     internal void WriteMemory(ushort address, byte value) {
-        bus.Address = address;
-        bus.BusState = RWState.Write;
-        bus.Data = value;
+        WriteMonitor?.Invoke(address, value);
+        
+        if (address == InterruptRegisterAddresses.IE) {
+            Registers.IE = value;
+            return;
+        }
+        if (address == InterruptRegisterAddresses.IF) {
+            Registers.IF = value;
+            return;
+        }
+        
+        if (gameboy.RAM.WithinVRAM(address)) {
+            if (video_bus.Driver != VideoBusDriver.CPU)
+                return;
+
+            video_bus.Address = address;
+            video_bus.BusState = RWState.Write;
+
+            video_bus.Data = value;
+            return;
+        }
+
+        if (memory_bus.Driver == MemoryBusDriver.DMA && gameboy.RAM.WithinHRAM(address)) {
+            memory_bus.hram_side_channel.Address = address;
+            memory_bus.hram_side_channel.Data = value;
+            memory_bus.hram_side_channel.BusState = RWState.Write;
+            selected_bus = SelectedBus.HRAMSideChannel;
+            return;
+        }
+
+        if (memory_bus.Driver != MemoryBusDriver.CPU) 
+            return;
+        
+        if (gameboy.RAM.WithinOAM(address) && gameboy.PPU.Mode is PPUMode.LCD_TRANSFER_3 or PPUMode.OAM_SEARCH_2)
+            return;
+        
+        memory_bus.Address = address;
+        memory_bus.BusState = RWState.Write;
+
+        memory_bus.Data = value;
+
+        memory_bus.Target = memory_bus.FindBusTarget();
     }
     
-    public void RequestInterrupt(InterruptMask interrupt) {
-        Registers.IF |= (byte)interrupt;
-    }
 
     public ConcurrentQueue<OpcodeInfo> LastNOpcodes = new();
-    private int track_n_opcodes = 50;
+    private int track_n_opcodes = 30;
     public bool track_opcodes = false;
     private uint last_op_total_cycles = 0;
     private uint cycles_since_last_op = 0;

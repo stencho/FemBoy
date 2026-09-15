@@ -105,7 +105,7 @@ public class GameboyEmulator {
     }
     
     public int total_frames = 0;
-    private bool allow_emulator_to_crash = false;
+    private bool allow_emulator_to_crash = true;
     
     public void Update() {
         if (CRASHED) return;
@@ -158,8 +158,8 @@ public class GameboyEmulator {
 
     void UpdateFrameBufferTexture() {
         
-        Parallel.For(0, 160 * 144, (c) => {
-            //for (int c = 0; c < 160 * 144; c++) {
+        //Parallel.For(0, 160 * 144, (c) => {
+        for (int c = 0; c < 160 * 144; c++) {
             switch (gameboy.PPU.frame_buffer[c]) {
                 case 0:
                     frame_buffer[c] = new Color(155, 188, 15);
@@ -177,7 +177,7 @@ public class GameboyEmulator {
                     frame_buffer[c] = new Color(255, 0, 255);
                     break;
             }
-        });
+        }//);
             
         texture.SetData(frame_buffer);
     }

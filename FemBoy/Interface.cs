@@ -165,6 +165,25 @@ public static class Interface {
         
         return output;
     }
+
+    public static string PrintBusState() {
+        if (gb.gameboy == null) return "";
+        string output = "[Memory Bus]\n";
+
+        output += $"[Target]  {gb.gameboy.memory_bus.Target}\n";
+        output += $"[Driver]  {gb.gameboy.memory_bus.Driver}\n";
+        output += $"[R/W]     {gb.gameboy.memory_bus.BusState}\n";
+        output += $"[Address] {gb.gameboy.memory_bus.Address:X4}\n";
+        output += $"[Data]    {gb.gameboy.memory_bus.Data:X4}\n";
+        
+        output +=  "\n[Video Bus]\n";
+        output += $"[Driver]  {gb.gameboy.video_bus.Driver}\n";
+        output += $"[R/W]     {gb.gameboy.video_bus.BusState}\n";
+        output += $"[Address] {gb.gameboy.video_bus.Address:X4}\n";
+        output += $"[Data]    {gb.gameboy.video_bus.Data:X4}\n\n";
+        output += $"[Selected CPU Bus] {gb.gameboy.CPU.selected_bus}\n";
+        return output;
+    }
     
     public static bool MouseHidden = false;
     
@@ -187,6 +206,7 @@ public static class Interface {
             Draw2D.text_shadow(
                 "[Frames/Ticks] " + Clock.frame_rate + "/" + Clock.tick_rate + "\n\n" + 
                 PrintRegisters() + "\n" + 
+                PrintBusState() + "\n" +
                 PrintCartridgeInfo() + "\n" + 
                 PrintPPUInfo() + "\n" + 
                 PrintAPUInfo() + "\n" + 
