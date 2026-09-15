@@ -14,7 +14,7 @@
     </PropertyGroup>
     <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
       <PlatformTarget>x64</PlatformTarget>
-      <Optimize>true</Optimize>
+      <Optimize>false</Optimize>
     </PropertyGroup>
     <ItemGroup>
         <None Remove="Icon.ico"/>
