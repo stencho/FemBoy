@@ -95,8 +95,8 @@ public class MemoryBus : IBus {
                         break;
                     
                     case InterruptRegisterAddresses.IF:
-                        if (BusState == RWState.Read) Data = gameboy.CPU.Registers.IF;
-                        else if (BusState == RWState.Write) gameboy.CPU.Registers.IF = Data;
+                        if (BusState == RWState.Read) Data = (byte)(gameboy.CPU.Registers.IF | 0xE0);
+                        else if (BusState == RWState.Write) gameboy.CPU.Registers.IF =  (byte)(Data & 0x1F);
                         break;
                     
                     case CPURegisterAddresses.KEY1:
