@@ -118,9 +118,6 @@ public class Timer {
                 CPU.RequestInterrupt(InterruptMask.Timer);
             }
 
-            if (TIMA_reload_delay == 2) {
-            }
-            
             if (TIMA_reload_delay > 4) {
                 _TIMA = _TMA; 
                 TIMA_reload_pending = false;
