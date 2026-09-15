@@ -120,15 +120,6 @@ public class CPU {
     internal void ReadMemory(ushort address) {
         ReadMonitor?.Invoke(address);
         
-        if (address == InterruptRegisterAddresses.IE) {
-            memory_bus.Data = Registers.IE;
-            return;
-        }
-        if (address == InterruptRegisterAddresses.IF) {
-            memory_bus.Data = Registers.IF;
-            return;
-        }
-
         if (gameboy.RAM.WithinVRAM(address)) {
             if (video_bus.Driver != VideoBusDriver.CPU)
                 return;
@@ -175,15 +166,6 @@ public class CPU {
     internal void WriteMemory(ushort address, byte value) {
         WriteMonitor?.Invoke(address, value);
         
-        if (address == InterruptRegisterAddresses.IE) {
-            Registers.IE = value;
-            return;
-        }
-        if (address == InterruptRegisterAddresses.IF) {
-            Registers.IF = value;
-            return;
-        }
-        
         if (gameboy.RAM.WithinVRAM(address)) {
             if (video_bus.Driver != VideoBusDriver.CPU)
                 return;
@@ -220,7 +202,7 @@ public class CPU {
 
     public ConcurrentQueue<OpcodeInfo> LastNOpcodes = new();
     private int track_n_opcodes = 30;
-    public bool track_opcodes = false;
+    public bool track_opcodes = true;
     private uint last_op_total_cycles = 0;
     private uint cycles_since_last_op = 0;
 
@@ -285,7 +267,7 @@ public class CPU {
                 ChangedOpcode?.Invoke(current_opcode);
                 
                 //if (current_opcode == 0x40) wants_pause = true;
-                //if (current_opcode == 0xFF) wants_pause = true;
+                if (current_opcode == 0xFF) wants_pause = true;
                 
                 if (_halt_bug) _halt_bug = false;
                 else Registers.PC++;

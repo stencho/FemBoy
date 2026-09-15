@@ -6,7 +6,7 @@ public enum MemoryBusDriver { CPU, DMA }
 public enum VideoBusDriver { CPU, PPU }
 
 public enum BusTarget {
-    PPU, Timer, Serial, DMA, Joypad, APU, Memory
+    PPU, Timer, Serial, DMA, Joypad, APU, Memory, CPURegister
 }
 
 public enum SelectedBus { Memory, Video, HRAMSideChannel }
@@ -50,6 +50,8 @@ public class MemoryBus : IBus {
             case Joypad.RegisterAddress: return BusTarget.Joypad;
             case PPURegisterAddresses.DMA: return BusTarget.DMA;
             case >= PPURegisterAddresses.LCDC and <= PPURegisterAddresses.WX: return BusTarget.PPU;
+            case InterruptRegisterAddresses.IE or InterruptRegisterAddresses.IF or CPURegisterAddresses.KEY1: 
+                return BusTarget.CPURegister;
             default: return BusTarget.Memory;
         }
     }
@@ -84,6 +86,24 @@ public class MemoryBus : IBus {
                 gameboy.joypad.HandleBusRW();
                 break;
             case BusTarget.APU:
+                break;
+            case BusTarget.CPURegister:
+                switch (Address) {
+                    case InterruptRegisterAddresses.IE:
+                        if (BusState == RWState.Read) Data = gameboy.CPU.Registers.IE;
+                         else if (BusState == RWState.Write) gameboy.CPU.Registers.IE = Data;
+                        break;
+                    
+                    case InterruptRegisterAddresses.IF:
+                        if (BusState == RWState.Read) Data = gameboy.CPU.Registers.IF;
+                        else if (BusState == RWState.Write) gameboy.CPU.Registers.IF = Data;
+                        break;
+                    
+                    case CPURegisterAddresses.KEY1:
+                        if (BusState == RWState.Read) Data = gameboy.CPU.Registers.KEY1;
+                        else if (BusState == RWState.Write) gameboy.CPU.Registers.KEY1 = Data;
+                        break;
+                }
                 break;
             case BusTarget.Memory:
                 gameboy.RAM.HandleBusRW();
