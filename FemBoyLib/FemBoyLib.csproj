@@ -8,6 +8,16 @@
         <RootNamespace>FemBoy</RootNamespace>
     </PropertyGroup>
 
+    <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+      <PlatformTarget>x64</PlatformTarget>
+      <Optimize>true</Optimize>
+    </PropertyGroup>
+
+    <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+      <PlatformTarget>x64</PlatformTarget>
+      <DebugType>none</DebugType>
+    </PropertyGroup>
+
     <ItemGroup>
       <PackageReference Include="System.IO.Hashing" Version="11.0.0-preview.7.26381.103" />
     </ItemGroup>
