@@ -276,10 +276,10 @@ public class CPU {
 
     void OpcodeFetch() {
         switch (t_cycle) {
-            case 0:
+            case 0: break; // Stabilize address lines
+            case 1:        // Open read gates
                 ReadMemory(Registers.PC);
-                break; // Stabilize address lines
-            case 1: break; // Open read gates
+                break; 
             case 2:        // Sample opcode
                 current_opcode = ReadBus();
                 ChangedOpcode?.Invoke(current_opcode);
@@ -307,6 +307,7 @@ public class CPU {
     void ExecuteInstruction() {
         if (Operations.current_operation != null) {
             t_cycle++;
+            
             if (t_cycle-1 < Operations.current_operation.initial_wait) {
                 return;
             }
