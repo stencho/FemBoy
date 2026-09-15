@@ -13,7 +13,7 @@ public static class GBMicroTest {
     static void Setup(GBMicroTestROM rom) {
         gb = new GameBoy();
         
-        gb.WriteMonitor += (address, value) => {
+        gb.CPU.WriteMonitor += (address, value) => {
             if (address == 0xFF82) {
                 if (value == 0x01) rom.pass_state = PassState.PASS;
                 else rom.pass_state = PassState.FAIL;

@@ -28,7 +28,7 @@ public static class Blargg {
     static void Setup(BlarggTestROM rom) {
         gb = new GameBoy();
         
-        gb.WriteMonitor += (address, value) => {
+        gb.CPU.WriteMonitor += (address, value) => {
             if (address == 0xA000) {
                 if (value != 0x80) {
                     test_finished = true;

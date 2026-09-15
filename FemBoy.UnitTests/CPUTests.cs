@@ -6,6 +6,7 @@ namespace Microsoft.Extensions.Hosting;
 public class CPUTests {
     GameBoy gb = new GameBoy();
     private CPU CPU => gb.CPU;
+    private IMemory RAM => gb.RAM;
     
     [SetUp]
     public void Setup() {
@@ -22,7 +23,7 @@ public class CPUTests {
 
         CPU.Registers.B = init;
         
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
         
         Assert.That(CPU.Registers.B, Is.EqualTo(expected));
     }
@@ -41,7 +42,7 @@ public class CPUTests {
         CPU.Registers.BC = init;
         CPU.Registers.F = 0xF0;
         
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
         
         Assert.That(CPU.Registers.BC, Is.EqualTo(expected));
         Assert.That(CPU.Registers.F, Is.EqualTo((byte)0xF0));
@@ -61,7 +62,7 @@ public class CPUTests {
         CPU.Registers.DE = init;
         CPU.Registers.F = 0xF0;
         
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
         
         Assert.That(CPU.Registers.DE, Is.EqualTo(expected));
         Assert.That(CPU.Registers.F, Is.EqualTo((byte)0xF0));
@@ -81,7 +82,7 @@ public class CPUTests {
         CPU.Registers.HL = init;
         CPU.Registers.F = 0xF0;
         
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
         
         Assert.That(CPU.Registers.HL, Is.EqualTo(expected));
         Assert.That(CPU.Registers.F, Is.EqualTo((byte)0xF0));
@@ -101,7 +102,7 @@ public class CPUTests {
         CPU.Registers.BC = init;
         CPU.Registers.F = 0xF0;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
         
 
         Assert.That(CPU.Registers.BC, Is.EqualTo(expected));
@@ -120,7 +121,7 @@ public class CPUTests {
 
         CPU.Registers.PC = 0x0100;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(expected));
     }
@@ -133,7 +134,7 @@ public class CPUTests {
         CPU.Registers.PC = 0x0100;
         CPU.Registers.SetFlag(CPUFlagMask.Zero, zero);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(expected));
     }
@@ -146,7 +147,7 @@ public class CPUTests {
         CPU.Registers.PC = 0x0100;
         CPU.Registers.SetFlag(CPUFlagMask.Zero, zero);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(expected));
     }
@@ -159,7 +160,7 @@ public class CPUTests {
         CPU.Registers.PC = 0x0100;
         CPU.Registers.SetFlag(CPUFlagMask.Carry, carry);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(expected));
     }
@@ -172,7 +173,7 @@ public class CPUTests {
         CPU.Registers.PC = 0x0100;
         CPU.Registers.SetFlag(CPUFlagMask.Carry, carry);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(expected));
     }
@@ -186,7 +187,7 @@ public class CPUTests {
         CPU.Registers.HL = hl;
         CPU.Registers.A = value;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
         
 
         Assert.That(gb.ReadMemory(hl), Is.EqualTo(value));
@@ -202,7 +203,7 @@ public class CPUTests {
         CPU.Registers.HL = hl;
         gb.WriteMemory(hl, value);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo(value));
         Assert.That(CPU.Registers.HL, Is.EqualTo(expectedHL));
@@ -221,10 +222,7 @@ public class CPUTests {
 
         CPU.Registers.A = value;
 
-        while (CPU.ops < 1) {
-            CPU.Tick();
-            gb.TickBuses();
-        }
+        while (CPU.ops < 1) { gb.Tick(); }
         
         Assert.That(gb.ReadMemory(address), Is.EqualTo(value));
     }
@@ -242,7 +240,7 @@ public class CPUTests {
 
         gb.WriteMemory(address, value);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo(value));
     }
@@ -259,7 +257,7 @@ public class CPUTests {
 
         CPU.ops = 0;
         
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
         
         Assert.That(CPU.Registers.SP, Is.EqualTo((ushort)(initialSP - 2)));
 
@@ -292,7 +290,7 @@ public class CPUTests {
         gb.RAM.Write(0xD000, (byte)(returnAddress & 0xFF));
         gb.RAM.Write(0xD001, (byte)(returnAddress >> 8));
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(returnAddress));
         Assert.That(CPU.Registers.SP, Is.EqualTo((ushort)0xD002));
@@ -310,7 +308,7 @@ public class CPUTests {
         gb.RAM.Write(0xD000, (byte)(returnAddress & 0xFF));
         gb.RAM.Write(0xD001, (byte)(returnAddress >> 8));
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(zero ? (ushort)0x0101 : returnAddress));
         Assert.That(CPU.Registers.SP, Is.EqualTo(zero ? (ushort)0xD000 : (ushort)0xD002));
@@ -328,7 +326,7 @@ public class CPUTests {
         gb.RAM.Write(0xD000, (byte)(returnAddress & 0xFF));
         gb.RAM.Write(0xD001, (byte)(returnAddress >> 8));
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(
             zero ? returnAddress : (ushort)0x0101
@@ -350,7 +348,7 @@ public class CPUTests {
         gb.RAM.Write(0xD000, (byte)(returnAddress & 0xFF));
         gb.RAM.Write(0xD001, (byte)(returnAddress >> 8));
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(
             carry ? returnAddress : (ushort)0x0101
@@ -372,7 +370,7 @@ public class CPUTests {
         gb.RAM.Write(0xD000, (byte)(returnAddress & 0xFF));
         gb.RAM.Write(0xD001, (byte)(returnAddress >> 8));
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(
             !carry ? returnAddress : (ushort)0x0101
@@ -395,7 +393,7 @@ public class CPUTests {
         gb.RAM.Write(0xD000, (byte)(value & 0xFF));
         gb.RAM.Write(0xD001, (byte)(value >> 8));
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.BC, Is.EqualTo(value));
         Assert.That(CPU.Registers.SP, Is.EqualTo((ushort)0xD002));
@@ -414,7 +412,7 @@ public class CPUTests {
         gb.RAM.Write(0xD000, (byte)(value & 0xFF));
         gb.RAM.Write(0xD001, (byte)(value >> 8));
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.DE, Is.EqualTo(value));
         Assert.That(CPU.Registers.SP, Is.EqualTo((ushort)0xD002));
@@ -433,7 +431,7 @@ public class CPUTests {
         gb.RAM.Write(0xD000, (byte)(value & 0xFF));
         gb.RAM.Write(0xD001, (byte)(value >> 8));
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.HL, Is.EqualTo(value));
         Assert.That(CPU.Registers.SP, Is.EqualTo((ushort)0xD002));
@@ -452,7 +450,7 @@ public class CPUTests {
         gb.RAM.Write(0xD000, (byte)(value & 0xFF));
         gb.RAM.Write(0xD001, (byte)(value >> 8));
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo((byte)(value >> 8)));
         Assert.That(CPU.Registers.F, Is.EqualTo((byte)(value & 0xF0)));
@@ -469,7 +467,7 @@ public class CPUTests {
         CPU.Registers.PC = 0x0100;
         CPU.Registers.SP = 0xD000;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(target));
         Assert.That(CPU.Registers.SP, Is.EqualTo((ushort)0xCFFE));
@@ -494,7 +492,7 @@ public class CPUTests {
         CPU.Registers.SP = 0xD000;
         CPU.Registers.SetFlag(CPUFlagMask.Zero, zero);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(
             zero ? (ushort)0x0103 : target
@@ -519,7 +517,7 @@ public class CPUTests {
         CPU.Registers.SP = 0xD000;
         CPU.Registers.SetFlag(CPUFlagMask.Zero, zero);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(
             zero ? target : (ushort)0x0103
@@ -539,7 +537,7 @@ public class CPUTests {
         CPU.Registers.SP = 0xD000;
         CPU.Registers.SetFlag(CPUFlagMask.Carry, carry);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(
             carry ? target : (ushort)0x0103
@@ -559,7 +557,7 @@ public class CPUTests {
         CPU.Registers.SP = 0xD000;
         CPU.Registers.SetFlag(CPUFlagMask.Carry, carry);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(
             !carry ? target : (ushort)0x0103
@@ -579,7 +577,7 @@ public class CPUTests {
 
         CPU.Registers.PC = 0x0100;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(target));
     }[TestCase(false, (ushort)0x1234)] // Z=0 -> taken
@@ -590,7 +588,7 @@ public class CPUTests {
         CPU.Registers.PC = 0x0100;
         CPU.Registers.SetFlag(CPUFlagMask.Zero, zero);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(
             zero ? (ushort)0x0103 : target
@@ -605,7 +603,7 @@ public class CPUTests {
         CPU.Registers.PC = 0x0100;
         CPU.Registers.SetFlag(CPUFlagMask.Zero, zero);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(
             zero ? target : (ushort)0x0103
@@ -620,7 +618,7 @@ public class CPUTests {
         CPU.Registers.PC = 0x0100;
         CPU.Registers.SetFlag(CPUFlagMask.Carry, carry);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(
             !carry ? target : (ushort)0x0103
@@ -635,7 +633,7 @@ public class CPUTests {
         CPU.Registers.PC = 0x0100;
         CPU.Registers.SetFlag(CPUFlagMask.Carry, carry);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(
             carry ? target : (ushort)0x0103
@@ -651,7 +649,7 @@ public class CPUTests {
 
         CPU.Registers.SP = 0;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.SP, Is.EqualTo(value));
     }
@@ -669,7 +667,7 @@ public class CPUTests {
 
         CPU.Registers.SP = value;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(
             gb.RAM.Read(address),
@@ -702,7 +700,7 @@ public class CPUTests {
         CPU.Registers.SetFlag(CPUFlagMask.Zero, true);
         CPU.Registers.SetFlag(CPUFlagMask.Negative, true);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.HL, Is.EqualTo((ushort)(hl + bc)));
         Assert.That(CPU.Registers.GetFlag(CPUFlagMask.Zero), Is.True);
@@ -721,7 +719,7 @@ public class CPUTests {
         CPU.Registers.HL = hl;
         CPU.Registers.DE = de;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.HL, Is.EqualTo((ushort)(hl + de)));
     }
@@ -736,7 +734,7 @@ public class CPUTests {
 
         CPU.Registers.HL = hl;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.HL, Is.EqualTo((ushort)(hl + hl)));
     }
@@ -751,7 +749,7 @@ public class CPUTests {
         CPU.Registers.HL = hl;
         CPU.Registers.SP = sp;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.HL, Is.EqualTo((ushort)(hl + sp)));
     }
@@ -767,7 +765,7 @@ public class CPUTests {
         CPU.Registers.A = a;
         CPU.Registers.B = b;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo(expected));
     }
@@ -783,7 +781,7 @@ public class CPUTests {
         CPU.Registers.B = b;
         CPU.Registers.SetFlag(CPUFlagMask.Carry, true);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo(expected));
     }
@@ -798,7 +796,7 @@ public class CPUTests {
         CPU.Registers.A = a;
         CPU.Registers.B = b;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo(expected));
     }
@@ -814,7 +812,7 @@ public class CPUTests {
         CPU.Registers.B = b;
         CPU.Registers.SetFlag(CPUFlagMask.Carry, true);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo(expected));
     }
@@ -829,7 +827,7 @@ public class CPUTests {
         CPU.Registers.A = a;
         CPU.Registers.B = b;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo(expected));
     }
@@ -844,7 +842,7 @@ public class CPUTests {
         CPU.Registers.A = a;
         CPU.Registers.B = b;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo(expected));
     }
@@ -859,7 +857,7 @@ public class CPUTests {
         CPU.Registers.A = a;
         CPU.Registers.B = b;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo(expected));
     }
@@ -875,7 +873,7 @@ public class CPUTests {
         CPU.Registers.A = a;
         CPU.Registers.B = b;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo(a));
     }
@@ -894,7 +892,7 @@ public class CPUTests {
         CPU.Registers.PC = 0x0100;
         CPU.Registers.SP = 0xD000;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(target));
         Assert.That(CPU.Registers.SP, Is.EqualTo((ushort)0xCFFE));
@@ -916,7 +914,7 @@ public class CPUTests {
         gb.RAM.Write(0xD000, (byte)(returnAddress & 0xFF));
         gb.RAM.Write(0xD001, (byte)(returnAddress >> 8));
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(returnAddress));
         Assert.That(CPU.Registers.SP, Is.EqualTo((ushort)0xD002));
@@ -933,7 +931,7 @@ public class CPUTests {
         CPU.Registers.PC = 0x0100;
         CPU.Registers.A = value;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(
             gb.RAM.Read((ushort)(0xFF00 + offset)),
@@ -952,7 +950,7 @@ public class CPUTests {
 
         gb.RAM.Write((ushort)(0xFF00 + offset), value);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo(value));
     }
@@ -967,7 +965,7 @@ public class CPUTests {
         CPU.Registers.C = c;
         CPU.Registers.A = value;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(
             gb.RAM.Read((ushort)(0xFF00 + c)),
@@ -985,7 +983,7 @@ public class CPUTests {
         CPU.Registers.C = c;
         gb.RAM.Write((ushort)(0xFF00 + c), value);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo(value));
     }
@@ -999,7 +997,7 @@ public class CPUTests {
 
         CPU.Registers.A = value;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(
             gb.RAM.Read((ushort)(0xFF00 + offset)),
@@ -1015,7 +1013,7 @@ public class CPUTests {
         CPU.Registers.PC = 0x0100;
         CPU.Registers.SetFlag(CPUFlagMask.Zero, zero);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.PC, Is.EqualTo(expected));
     }
@@ -1024,7 +1022,7 @@ public class CPUTests {
         gb.LoadROM(0xCB, 0x00);
         CPU.Registers.B = 0x80;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.B, Is.EqualTo(0x01));
         Assert.That(CPU.Registers.GetFlag(CPUFlagMask.Carry), Is.True);
@@ -1036,7 +1034,7 @@ public class CPUTests {
         gb.LoadROM(0xCB, 0x08);
         CPU.Registers.B = 0x01;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.B, Is.EqualTo(0x80));
         Assert.That(CPU.Registers.GetFlag(CPUFlagMask.Carry), Is.True);
@@ -1048,7 +1046,7 @@ public class CPUTests {
         CPU.Registers.B = 0x80;
         CPU.Registers.SetFlag(CPUFlagMask.Carry, true);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.B, Is.EqualTo(0x01));
         Assert.That(CPU.Registers.GetFlag(CPUFlagMask.Carry), Is.True);
@@ -1060,7 +1058,7 @@ public class CPUTests {
         CPU.Registers.B = 0x01;
         CPU.Registers.SetFlag(CPUFlagMask.Carry, true);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.B, Is.EqualTo(0x80));
         Assert.That(CPU.Registers.GetFlag(CPUFlagMask.Carry), Is.True);
@@ -1071,7 +1069,7 @@ public class CPUTests {
         gb.LoadROM(0xCB, 0x20);
         CPU.Registers.B = 0x81;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.B, Is.EqualTo(0x02));
         Assert.That(CPU.Registers.GetFlag(CPUFlagMask.Carry), Is.True);
@@ -1082,7 +1080,7 @@ public class CPUTests {
         gb.LoadROM(0xCB, 0x28);
         CPU.Registers.B = 0x81;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.B, Is.EqualTo(0xC0));
         Assert.That(CPU.Registers.GetFlag(CPUFlagMask.Carry), Is.True);
@@ -1093,7 +1091,7 @@ public class CPUTests {
         gb.LoadROM(0xCB, 0x38);
         CPU.Registers.B = 0x81;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.B, Is.EqualTo(0x40));
         Assert.That(CPU.Registers.GetFlag(CPUFlagMask.Carry), Is.True);
@@ -1104,7 +1102,7 @@ public class CPUTests {
         gb.LoadROM(0xCB, 0x30);
         CPU.Registers.B = 0xF0;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.B, Is.EqualTo(0x0F));
         Assert.That(CPU.Registers.GetFlag(CPUFlagMask.Zero), Is.False);
@@ -1119,7 +1117,7 @@ public class CPUTests {
 
         CPU.Registers.B = 0x01;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.B, Is.EqualTo(0x01));
         Assert.That(CPU.Registers.GetFlag(CPUFlagMask.Zero), Is.False);
@@ -1133,7 +1131,7 @@ public class CPUTests {
 
         CPU.Registers.B = 0x00;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.B, Is.EqualTo(0x00));
         Assert.That(CPU.Registers.GetFlag(CPUFlagMask.Zero), Is.True);
@@ -1146,7 +1144,7 @@ public class CPUTests {
 
         CPU.Registers.B = 0xFF;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.B, Is.EqualTo(0xFE));
     }
@@ -1157,7 +1155,7 @@ public class CPUTests {
 
         CPU.Registers.B = 0x00;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.B, Is.EqualTo(0x01));
     }
@@ -1168,7 +1166,7 @@ public class CPUTests {
 
         CPU.Registers.A = 0x00;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo(0x80));
     }
@@ -1180,7 +1178,7 @@ public class CPUTests {
         CPU.Registers.HL = 0xC000;
         gb.RAM.Write(0xC000, 0x80);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(gb.RAM.Read(0xC000), Is.EqualTo(0x01));
         Assert.That(CPU.Registers.GetFlag(CPUFlagMask.Carry), Is.True);
@@ -1193,7 +1191,7 @@ public class CPUTests {
         CPU.Registers.HL = 0xC000;
         gb.RAM.Write(0xC000, 0x00);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(gb.RAM.Read(0xC000), Is.EqualTo(0x00));
         Assert.That(CPU.Registers.GetFlag(CPUFlagMask.Zero), Is.True);
@@ -1206,7 +1204,7 @@ public class CPUTests {
         CPU.Registers.HL = 0xC000;
         gb.RAM.Write(0xC000, 0xFF);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(gb.RAM.Read(0xC000), Is.EqualTo(0xFE));
     }
@@ -1218,7 +1216,7 @@ public class CPUTests {
         CPU.Registers.HL = 0xC000;
         gb.RAM.Write(0xC000, 0x00);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(gb.RAM.Read(0xC000), Is.EqualTo(0x01));
     }
@@ -1231,7 +1229,7 @@ public class CPUTests {
         CPU.Registers.HL = 0xC000;
         gb.RAM.Write(0xC000, 0x34);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo(0x46));
     }
@@ -1245,7 +1243,7 @@ public class CPUTests {
         CPU.Registers.SetFlag(CPUFlagMask.Carry, true);
         gb.RAM.Write(0xC000, 0x34);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo(0x47));
     }
@@ -1258,7 +1256,7 @@ public class CPUTests {
         CPU.Registers.HL = 0xC000;
         gb.RAM.Write(0xC000, 0x12);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo(0x34));
     }
@@ -1272,7 +1270,7 @@ public class CPUTests {
         CPU.Registers.SetFlag(CPUFlagMask.Carry, true);
         gb.RAM.Write(0xC000, 0x12);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo(0x33));
     }
@@ -1285,7 +1283,7 @@ public class CPUTests {
         CPU.Registers.HL = 0xC000;
         gb.RAM.Write(0xC000, 0x3C);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo(0x30));
     }
@@ -1298,7 +1296,7 @@ public class CPUTests {
         CPU.Registers.HL = 0xC000;
         gb.RAM.Write(0xC000, 0x3C);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo(0xCC));
     }
@@ -1311,7 +1309,7 @@ public class CPUTests {
         CPU.Registers.HL = 0xC000;
         gb.RAM.Write(0xC000, 0x3C);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo(0xFC));
     }
@@ -1324,7 +1322,7 @@ public class CPUTests {
         CPU.Registers.HL = 0xC000;
         gb.RAM.Write(0xC000, 0x3C);
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.Registers.A, Is.EqualTo(0x3C));
         Assert.That(CPU.Registers.GetFlag(CPUFlagMask.Zero), Is.True);
@@ -1337,7 +1335,7 @@ public class CPUTests {
 
         CPU.interrupt_master_enable = false;
         
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.interrupt_master_enable, Is.False);
 
@@ -1355,18 +1353,12 @@ public class CPUTests {
         CPU.Registers.IF = 0x01;
 
         // Execute EI
-        while (CPU.ops < 1) {
-            CPU.Tick();
-            gb.TickBuses();
-        }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(CPU.interrupt_master_enable, Is.False);
 
         // Execute NOP
-        while (CPU.ops < 2) {
-            CPU.Tick();
-            gb.TickBuses();
-        }
+        while (CPU.ops < 2) { gb.Tick(); }
 
         Assert.That(CPU.interrupt_master_enable, Is.True);
     }
@@ -1380,7 +1372,7 @@ public class CPUTests {
         CPU.Registers.A = a;
         CPU.Registers.B = b;
 
-        while (CPU.ops < 1) { CPU.Tick(); gb.TickBuses(); }
+        while (CPU.ops < 1) { gb.Tick(); }
 
         Assert.That(
             CPU.Registers.GetFlag(CPUFlagMask.HalfCarry),

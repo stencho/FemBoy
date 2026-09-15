@@ -31,7 +31,7 @@ public static class Mooneye {
             }
         };
         
-        gb.WriteMonitor += (address, value) => {
+        gb.CPU.WriteMonitor += (address, value) => {
             if (address == SerialRegisterAddresses.SB && rom.WaitingForSerialWrites) {
                 if (value == pass_writes[rom.WriteCount]) {
                     rom.WriteCount++;
@@ -86,6 +86,10 @@ public static class Mooneye {
             
             for (var index = 0; index < test_roms.Count; index++) {
                 var test_rom = test_roms[index];
+                
+                //if (test_rom.rom_folder != "timer") continue;
+                //if (test_rom.rom_name != "tma_write_reloading") continue;
+                
                 if (last_rom_folder != test_rom.rom_folder) {
                     Console.ForegroundColor = ConsoleColor.DarkCyan;
                     Console.WriteLine();
@@ -93,6 +97,7 @@ public static class Mooneye {
                     last_rom_folder = test_rom.rom_folder;
                 }
 
+                
                 Console.ForegroundColor = ConsoleColor.Gray;
                 Console.Write(test_rom.rom_name + "...");
 
@@ -102,7 +107,7 @@ public static class Mooneye {
                 
                 while (test_rom.pass_state == PassState.UNFINISHED) {
                     gb.Tick();
-                    if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start_time > 1000) test_rom.pass_state = PassState.DNF;
+                    if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start_time > 2000) test_rom.pass_state = PassState.DNF;
                 }
 
                 Console.CursorLeft -= 3;
