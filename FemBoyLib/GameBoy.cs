@@ -53,7 +53,11 @@ public class GameBoy {
         joypad = new Joypad(this);
         APU = new APU(this);
         
-        CPU.Registers.A = 0x01;
+        if (model == GameBoyModel.DotMatrix)
+            CPU.Registers.A = 0x01;
+        else 
+            CPU.Registers.A = 0x11;
+        
         CPU.Registers.F = 0xB0;
         CPU.Registers.B = 0x00;
         CPU.Registers.C = 0x13;
