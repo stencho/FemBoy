@@ -83,6 +83,11 @@ public class CPU {
                     Registers.SP--;
                     WriteMemory(Registers.SP, (byte)(Registers.PC >> 8)); 
                 
+                }),
+            new MicroOp(3,
+                () => {
+                    Registers.SP--;
+                    WriteMemory(Registers.SP, (byte)(Registers.PC & 0xFF));
                     if ((Registers.IE & (byte)current_interrupt) == 0) {
                         if      (InterruptRequested(InterruptMask.VBlank)) current_interrupt = InterruptMask.VBlank;
                         else if (InterruptRequested(InterruptMask.LCD)) current_interrupt = InterruptMask.LCD;
@@ -91,11 +96,6 @@ public class CPU {
                         else if (InterruptRequested(InterruptMask.Joypad)) current_interrupt = InterruptMask.Joypad;
                         else current_interrupt = 0;
                     }
-                }),
-            new MicroOp(3,
-                () => {
-                    Registers.SP--;
-                    WriteMemory(Registers.SP, (byte)(Registers.PC & 0xFF));
                 }),
             
             new MicroOp(0,
