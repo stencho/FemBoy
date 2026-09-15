@@ -22,7 +22,6 @@ public static class SaveGame {
         
         try {
             File.WriteAllBytes(save_file, RAM);
-            Debug.WriteLine($"Saved game to {save_file}");
         } catch (IOException ex) {
             Debug.WriteLine($"Failed to write save: {ex.Message}");
         }
