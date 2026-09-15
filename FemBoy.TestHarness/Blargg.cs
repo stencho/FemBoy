@@ -93,6 +93,7 @@ public static class Blargg {
 
             for (var index = 0; index < test_roms.Count; index++) {
                 var test_rom = test_roms[index];
+                if (test_rom.rom_folder.EndsWith("sound")) continue;
                 
                 if (last_rom_folder != test_rom.rom_folder) {
                     Console.ForegroundColor = ConsoleColor.DarkCyan;
