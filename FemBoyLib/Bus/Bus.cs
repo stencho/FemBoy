@@ -52,6 +52,7 @@ public class MemoryBus : IBus {
             case >= PPURegisterAddresses.LCDC and <= PPURegisterAddresses.WX: return BusTarget.PPU;
             case InterruptRegisterAddresses.IE or InterruptRegisterAddresses.IF or CPURegisterAddresses.KEY1: 
                 return BusTarget.CPURegister;
+            case >= 0xFF10 and <= 0xFF3F: return BusTarget.APU;
             default: return BusTarget.Memory;
         }
     }
@@ -86,6 +87,7 @@ public class MemoryBus : IBus {
                 gameboy.joypad.HandleBusRW();
                 break;
             case BusTarget.APU:
+                gameboy.APU.HandleBusRW();
                 break;
             case BusTarget.CPURegister:
                 switch (Address) {

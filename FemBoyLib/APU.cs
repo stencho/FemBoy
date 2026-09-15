@@ -97,6 +97,7 @@ public class NoiseChannel : AudioChannel {
 
 public class APU {
     private GameBoy gameboy;
+    private MemoryBus bus => gameboy.memory_bus;
 
     public readonly byte[] registers = [
         0x80, 0xBF, 0xF3, 0xFF, 0xBF, // channel 1
@@ -121,7 +122,6 @@ public class APU {
         noise.Active = false;
     }
 
-
     private bool enabled = true;
     public float volume = 1.0f;
 
@@ -144,6 +144,14 @@ public class APU {
         Array.Clear(registers, 0x00, 0x17);
     }
 
+    public void HandleBusRW() {
+        if (bus.BusState == RWState.Read) {
+            bus.Data = Read(bus.Address);
+        } else {
+            Write(bus.Address, bus.Data);
+        }
+    }
+    
     private int counter = 0;
     private int step = 0;
     
