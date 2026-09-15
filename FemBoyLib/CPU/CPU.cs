@@ -185,6 +185,14 @@ public class CPU {
             return;
         }
 
+        if (memory_bus.Driver == MemoryBusDriver.DMA && address == PPURegisterAddresses.DMA) {
+            memory_bus.Data = value;
+            memory_bus.Address = address;
+            memory_bus.BusState = RWState.Write;
+            memory_bus.Target = BusTarget.DMA;
+            return;
+        }
+
         if (memory_bus.Driver != MemoryBusDriver.CPU) 
             return;
         
