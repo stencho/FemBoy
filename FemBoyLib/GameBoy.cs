@@ -88,22 +88,24 @@ public class GameBoy {
         
         if (Model == GameBoyModel.Color && CPU.Registers.DoubleSpeed) {
             CPU.Tick();
+            DMA.Tick();
             
+            Timer.Tick();
             memory_bus.Tick();
             video_bus.Tick();
             
-            Timer.Tick();
             serial.Tick();
-            DMA.Tick();
+            
+            /////
             
             CPU.Tick();
+            DMA.Tick();
             
+            Timer.Tick();
             memory_bus.Tick();
             video_bus.Tick();
             
-            Timer.Tick();
             serial.Tick();
-            DMA.Tick();
             
         } else {
             CPU.Tick();
