@@ -121,8 +121,9 @@ public class CPU {
         ReadMonitor?.Invoke(address);
         
         if (gameboy.RAM.WithinVRAM(address)) {
-            if (video_bus.Driver != VideoBusDriver.CPU)
+            if (video_bus.Driver != VideoBusDriver.CPU) {
                 return;
+            }
 
             video_bus.Address = address;
             video_bus.BusState = RWState.Read;
@@ -137,9 +138,24 @@ public class CPU {
             selected_bus = SelectedBus.HRAMSideChannel;
             return;
         }
-        
-        if (gameboy.RAM.WithinOAM(address) && gameboy.PPU.Mode is PPUMode.LCD_TRANSFER_3 or PPUMode.OAM_SEARCH_2)
+
+        if (memory_bus.Driver == MemoryBusDriver.DMA && address == PPURegisterAddresses.DMA) {
+            memory_bus.hram_side_channel.Address = address;
+            memory_bus.hram_side_channel.BusState = RWState.Read;
+            selected_bus = SelectedBus.HRAMSideChannel;
             return;
+        }
+
+
+        if (gameboy.RAM.WithinOAM(address) && gameboy.PPU.Mode is PPUMode.LCD_TRANSFER_3 or PPUMode.OAM_SEARCH_2) {
+            selected_bus = SelectedBus.OpenBus;
+            return;
+        }
+
+        if (memory_bus.Driver != MemoryBusDriver.CPU) {
+            selected_bus = SelectedBus.OpenBus;
+            return;
+        }
         
         memory_bus.Address = address;
         memory_bus.BusState = RWState.Read;
@@ -154,12 +170,12 @@ public class CPU {
             return memory_bus.hram_side_channel.Data;
             
         } else if (selected_bus == SelectedBus.Memory) {
-            //if (memory_bus.Driver != MemoryBusDriver.CPU) return 0xFF;
             return memory_bus.Data;
             
-        } else {
-            //if (video_bus.Driver != VideoBusDriver.CPU) return 0xFF;
+        } else if (selected_bus == SelectedBus.Video) {
             return video_bus.Data;
+        } else {
+            return 0xFF;
         }
     }
     
@@ -186,13 +202,13 @@ public class CPU {
         }
 
         if (memory_bus.Driver == MemoryBusDriver.DMA && address == PPURegisterAddresses.DMA) {
-            memory_bus.Data = value;
-            memory_bus.Address = address;
-            memory_bus.BusState = RWState.Write;
-            memory_bus.Target = BusTarget.DMA;
+            memory_bus.hram_side_channel.Data = value;
+            memory_bus.hram_side_channel.Address = address;
+            memory_bus.hram_side_channel.BusState = RWState.Write;
+            selected_bus = SelectedBus.HRAMSideChannel;
             return;
         }
-
+        
         if (memory_bus.Driver != MemoryBusDriver.CPU) 
             return;
         
@@ -275,7 +291,7 @@ public class CPU {
                 ChangedOpcode?.Invoke(current_opcode);
                 
                 //if (current_opcode == 0x40) wants_pause = true;
-                if (current_opcode == 0xFF) wants_pause = true;
+                //if (current_opcode == 0xFF) wants_pause = true;
                 
                 if (_halt_bug) _halt_bug = false;
                 else Registers.PC++;

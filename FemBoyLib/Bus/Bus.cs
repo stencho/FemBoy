@@ -9,7 +9,7 @@ public enum BusTarget {
     PPU, Timer, Serial, DMA, Joypad, APU, Memory, CPURegister
 }
 
-public enum SelectedBus { Memory, Video, HRAMSideChannel }
+public enum SelectedBus { Memory, Video, HRAMSideChannel, OpenBus }
 
 public interface IBus {
     public ushort Address { get; set; }
@@ -60,9 +60,9 @@ public class MemoryBus : IBus {
     public void Tick() {
         if (hram_side_channel.BusState != RWState.Idle) {
             if (hram_side_channel.BusState == RWState.Read) {
-                hram_side_channel.Data = gameboy.RAM.Read(hram_side_channel.Address);
+                hram_side_channel.Data = gameboy.ReadMemory(hram_side_channel.Address);
             } else {
-                gameboy.RAM.Write(hram_side_channel.Address, hram_side_channel.Data);
+                gameboy.WriteMemory(hram_side_channel.Address, hram_side_channel.Data);
             }
             
             hram_side_channel.BusState = RWState.Idle;

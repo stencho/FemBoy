@@ -10,19 +10,21 @@ public class DMA {
     
     public bool Active { get; set; } = false;
     public bool Requested { get; set; } = false;
+
+    private byte buffered_value = 0;
     
     private ushort source;
     private ushort requested_source;
     private int rw_index;
     private int cycle_counter = 0;
+    private int startup_delay = 0;
     public int Cycle => cycle_counter;
     
-    private bool read_phase = true;
-    public bool ReadPhase => read_phase;
-
     public ushort Source => source;
     
     public byte Register = 0x00;
+
+    public bool restarting = false;
 
     public void Request(byte value) {
         Register = value;
@@ -31,13 +33,19 @@ public class DMA {
     }
     
     public void Start() {
-        rw_index = 0;
-        Active = true;
-        Requested = false;
-        cycle_counter = 5;
-        read_phase = true;
-        source = requested_source;
-        MemoryBus.Driver = MemoryBusDriver.DMA;
+        if (Active) {
+            restarting = true;
+            Requested = false;
+            startup_delay = 0;
+            
+        } else {
+            source = requested_source;
+            rw_index = 0;
+            Active = true;
+            Requested = false;
+            startup_delay = 0;
+            cycle_counter = 0;
+        }
     }
 
     public void HandleBusRW() {
@@ -46,6 +54,7 @@ public class DMA {
         }
         
         if (MemoryBus.BusState == RWState.Read) {
+            Debug.Print(MemoryBus.Data.ToString("X2"));
             MemoryBus.Data = Register;
         }
     }
@@ -54,43 +63,68 @@ public class DMA {
         MemoryBus.Address = address;
         MemoryBus.BusState = RWState.Read;
         MemoryBus.Target = BusTarget.Memory;
+        MemoryBus.Driver = MemoryBusDriver.DMA;
     }
 
     byte ReadBus() {
-        if (MemoryBus.Driver == MemoryBusDriver.CPU) {Debugger.Break();}
         return MemoryBus.Data;
     }
 
-    private byte buffer = 0;
+    void WriteMemory(ushort address, byte value) {
+        MemoryBus.Address = address;
+        MemoryBus.BusState = RWState.Write;
+        MemoryBus.Data = value;
+        MemoryBus.Target = BusTarget.Memory;
+        MemoryBus.Driver = MemoryBusDriver.DMA;
+    }
     
+    private byte buffer = 0;
+
     public void Tick() {
         if (!Active) return;
 
-        if (cycle_counter > 0) {
-            cycle_counter--;
-            return;
+        if (startup_delay < 4) {
+            startup_delay++;
+            
+            if (!restarting)
+                return;
+            
+            if (startup_delay == 4) {
+                rw_index = 0;
+                cycle_counter = 0;
+                source = requested_source;
+                rw_index = 0;
+                restarting = false;
+            }
         }
         
-        cycle_counter = 1;
-
-        if (read_phase) {
+        switch (cycle_counter) {
+            case 0:
+                if ((source + rw_index) >= 0xFE00) ReadMemory((ushort)((source - 0x2000) + rw_index));
+                else ReadMemory((ushort)(source + rw_index));
+                break;
             
-            //MemoryBus.Target = BusTarget.Memory;
+            case 1:
+                buffered_value = ReadBus();
+                break;
             
-            if ((source + rw_index) >= 0xFE00) ReadMemory((ushort)((source - 0x2000) + rw_index));
-            else ReadMemory((ushort)(source + rw_index));
-
-            //gameboy.CPU.wants_pause = true;
-        } else {
-            gameboy.RAM.Write((ushort)(0xFE00 + rw_index), ReadBus());
-            rw_index++;
+            case 2:
+                WriteMemory((ushort)(0xFE00 + rw_index), buffered_value);
+                break;
+            
+            case 3:
+                rw_index++;
+                
+                if (rw_index == 160) {
+                    rw_index = 0;
+                    Active = false;
+                    MemoryBus.Driver = MemoryBusDriver.CPU;
+                }
+                break;
         }
 
-        read_phase = !read_phase;
         
-        if (rw_index == 160) {
-            Active = false;
-            MemoryBus.Driver = MemoryBusDriver.CPU;
-        }
+        cycle_counter++;
+        if (cycle_counter == 4) cycle_counter = 0;
     }
 }

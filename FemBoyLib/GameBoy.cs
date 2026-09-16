@@ -95,6 +95,7 @@ public class GameBoy {
             DMA.Tick();
             
             Timer.Tick();
+            
             memory_bus.Tick();
             video_bus.Tick();
             
@@ -106,6 +107,7 @@ public class GameBoy {
             DMA.Tick();
             
             Timer.Tick();
+            
             memory_bus.Tick();
             video_bus.Tick();
             
