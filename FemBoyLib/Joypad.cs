@@ -33,12 +33,12 @@ public class Joypad {
     };
 
     public void HandleBusRW() {
-        if (MemoryBus.Address == RegisterAddress && MemoryBus.BusState == RWState.Write) {
+        if (MemoryBus.BusState == RWState.Write) {
             select_dpad = ((MemoryBus.Data & 0x10) == 0);
             select_buttons = ((MemoryBus.Data & 0x20) == 0);
         }
 
-        if (MemoryBus.Address == RegisterAddress && MemoryBus.BusState == RWState.Read) {
+        if (MemoryBus.BusState == RWState.Read) {
             byte result = 0xCF;
 
             if (select_dpad) {
@@ -58,15 +58,18 @@ public class Joypad {
                 if (button_states[JoypadButtons.Select]) result &= 0xFB;
                 if (button_states[JoypadButtons.Start]) result &= 0xF7;
             }
-
-            if (JOYP != result) gameboy.CPU.RequestInterrupt(InterruptMask.Joypad);
-
             JOYP = result;
-
             MemoryBus.Data = JOYP;
         }
     }
         
-    public void Press(JoypadButtons button) => button_states[button] = true;
+    public void Press(JoypadButtons button) {
+        if (button_states[button]) return;
+        button_states[button] = true;
+        
+        if (gameboy.CPU.Stopped) gameboy.CPU._stopped = false; 
+        gameboy.CPU.RequestInterrupt(InterruptMask.Joypad);
+    }
+    
     public void Release(JoypadButtons button) => button_states[button] = false;
 }
