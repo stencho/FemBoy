@@ -22,10 +22,10 @@ public class Sprite {
         this.address = address;
         this.index = index;
         
-        Y = gameboy.ReadMemory(address) - 16;
-        X = gameboy.ReadMemory((ushort)(address + 1)) - 8;
+        Y = gameboy.RAM.Read(address) - 16;
+        X = gameboy.RAM.Read((ushort)(address + 1)) - 8;
 
-        tile = gameboy.ReadMemory((ushort)(address + 2));
-        attr = gameboy.ReadMemory((ushort)(address + 3));
+        tile = gameboy.RAM.Read((ushort)(address + 2));
+        attr = gameboy.RAM.Read((ushort)(address + 3));
     }
 }

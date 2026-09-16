@@ -23,12 +23,15 @@ public class SpriteFetcher {
 
     public bool Active = false;
     
-    public Sprite? GetSpriteAtX(int x) {
+    public bool GetSpriteAtX(int x, out Sprite found_sprite) {
         foreach (Sprite sprite in OAM.visible_sprites) {
-            if (x >= sprite.X && x < sprite.X + 8)
-                return sprite;
+            if (x >= sprite.X && x < sprite.X + 8) {
+                found_sprite = sprite;
+                return true;
+            }
         }
-        return null;
+        found_sprite = null;
+        return false;
     }
     
     public void Start(Sprite sprite) {

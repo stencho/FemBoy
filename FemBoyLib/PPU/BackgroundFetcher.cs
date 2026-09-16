@@ -123,7 +123,7 @@ public class BGFetcher {
         }
         
         ushort addr = (ushort)(tile_map + (tile_y * 32) + tile_x);
-        tile_id = gameboy.ReadMemory(addr);
+        tile_id = gameboy.RAM.Read(addr);
     }
     
     private ushort GetTileDataAddress() {
@@ -133,12 +133,12 @@ public class BGFetcher {
     
     void FetchTileAddressLow() {
         ushort addr = GetTileDataAddress();
-        tile_lo = gameboy.ReadMemory(addr);
+        tile_lo = gameboy.RAM.Read(addr);
     }
 
     void FetchTileAddressHigh() {
         ushort addr = (ushort)(GetTileDataAddress() + 1);
-        tile_hi = gameboy.ReadMemory(addr);
+        tile_hi = gameboy.RAM.Read(addr);
     }
 
     void PushTile() {
