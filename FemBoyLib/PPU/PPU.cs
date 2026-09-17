@@ -227,6 +227,8 @@ public class PPU {
                 
                 lcd_startup_scanline = false;
                 
+                CPU.RequestInterrupt(InterruptMask.VBlank);
+                
                 if (!frame_ready) {
                     Array.Copy(frame_buffer_offscreen, frame_buffer, frame_buffer.Length);
                     frame_ready = true;
@@ -305,8 +307,7 @@ public class PPU {
             }
         }
         
-        if (dot == 0 && LY == 144) CPU.RequestInterrupt(InterruptMask.VBlank);
-        if (dot == 0 && LY == 144 && (_STAT & 0x20) != 0) CPU.RequestInterrupt(InterruptMask.STAT);
+        //if (dot == 0 && LY == 144 && (_STAT & 0x20) != 0) CPU.RequestInterrupt(InterruptMask.STAT);
         
         UpdateLYCCoincidence();
         HandleSTAT();
