@@ -306,7 +306,7 @@ public class PPU {
         }
         
         if (dot == 0 && LY == 144) CPU.RequestInterrupt(InterruptMask.VBlank);
-        if (dot == 0 && LY == 144 && (_STAT & 0x20) != 0) CPU.RequestInterrupt(InterruptMask.LCD);
+        if (dot == 0 && LY == 144 && (_STAT & 0x20) != 0) CPU.RequestInterrupt(InterruptMask.STAT);
         
         UpdateLYCCoincidence();
         HandleSTAT();
@@ -345,7 +345,7 @@ public class PPU {
         
         // Fire LCD interrupt if the STAT line has changed
         if (!old_stat_line && current_stat_line) {
-            CPU.RequestInterrupt(InterruptMask.LCD); 
+            CPU.RequestInterrupt(InterruptMask.STAT); 
         }
 
         // Store last STAT line

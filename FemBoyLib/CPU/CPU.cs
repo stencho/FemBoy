@@ -16,7 +16,7 @@ public static class CPURegisterAddresses {
 
 public enum InterruptMask : byte {
     VBlank = 0x01,
-    LCD = 0x02,
+    STAT = 0x02,
     Timer = 0x04,
     Serial = 0x08,
     Joypad = 0x10
@@ -72,7 +72,7 @@ public class CPU {
             new MicroOp(4,
                 () => {
                     if      (InterruptRequested(InterruptMask.VBlank)) current_interrupt = InterruptMask.VBlank;
-                    else if (InterruptRequested(InterruptMask.LCD)) current_interrupt = InterruptMask.LCD;
+                    else if (InterruptRequested(InterruptMask.STAT)) current_interrupt = InterruptMask.STAT;
                     else if (InterruptRequested(InterruptMask.Timer)) current_interrupt = InterruptMask.Timer;
                     else if (InterruptRequested(InterruptMask.Serial)) current_interrupt = InterruptMask.Serial;
                     else if (InterruptRequested(InterruptMask.Joypad)) current_interrupt = InterruptMask.Joypad;
@@ -91,7 +91,7 @@ public class CPU {
                     WriteMemory(Registers.SP, (byte)(Registers.PC & 0xFF));
                     if ((Registers.IE & (byte)current_interrupt) == 0) {
                         if      (InterruptRequested(InterruptMask.VBlank)) current_interrupt = InterruptMask.VBlank;
-                        else if (InterruptRequested(InterruptMask.LCD)) current_interrupt = InterruptMask.LCD;
+                        else if (InterruptRequested(InterruptMask.STAT)) current_interrupt = InterruptMask.STAT;
                         else if (InterruptRequested(InterruptMask.Timer)) current_interrupt = InterruptMask.Timer;
                         else if (InterruptRequested(InterruptMask.Serial)) current_interrupt = InterruptMask.Serial;
                         else if (InterruptRequested(InterruptMask.Joypad)) current_interrupt = InterruptMask.Joypad;
@@ -105,7 +105,7 @@ public class CPU {
                 
                     Registers.PC = current_interrupt switch {
                         InterruptMask.VBlank => 0x0040,
-                        InterruptMask.LCD    => 0x0048,
+                        InterruptMask.STAT    => 0x0048,
                         InterruptMask.Timer  => 0x0050,
                         InterruptMask.Serial => 0x0058,
                         InterruptMask.Joypad => 0x0060,
