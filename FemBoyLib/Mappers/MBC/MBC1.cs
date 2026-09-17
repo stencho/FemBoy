@@ -11,7 +11,7 @@ public class MBC1 : MBCMapper {
     private byte rom_bank_hi = 0;
     
     int RAM_bank => banking_mode == 1 ? rom_bank_hi : 0;
-    
+    int rom_bank_count => cartridge.ROM.Length / 0x4000;
     
     public MBC1(Cartridge cartridge, bool battery_save) {
         this.cartridge = cartridge;
@@ -33,6 +33,7 @@ public class MBC1 : MBCMapper {
         switch (address) {
             case < 0x4000: {
                 int current_bank = banking_mode == 0 ? 0 : rom_bank_hi << 5;
+                current_bank %= rom_bank_count;
                 return ReadROMBank(current_bank, address);
             }
             
@@ -43,7 +44,7 @@ public class MBC1 : MBCMapper {
                 if ((current_bank & 0x1F) == 0)
                     current_bank++;
                 
-                if ((current_bank & 0x1F) == 0) current_bank++;
+                current_bank %= rom_bank_count;
                 return ReadROMBank(current_bank, (address - 0x4000));
             }
 
@@ -64,7 +65,6 @@ public class MBC1 : MBCMapper {
             
             case < 0x4000: 
                 rom_bank_lo = (byte)(value & 0x1F);
-                if (rom_bank_lo == 0) rom_bank_lo = 1;
                 break;
             
             case < 0x6000:
