@@ -66,6 +66,8 @@ public class PPU {
     }
 
     public byte LY = 0x00;
+    private byte previous_LY = 0x00;
+    
     public byte LYC = 0x00;
     
     public byte SCX = 0x00;
@@ -196,7 +198,9 @@ public class PPU {
         
         if (!LCD_ON) goto bus_read;
         old_mode = mode;
+        previous_LY = LY;
         
+
         if (LY == 153) {
             last_line_was_153 = true;
             if (dot == 4) {
@@ -206,7 +210,7 @@ public class PPU {
         } else if (dot == 456) {
             dot = 0;
             LY++;
-
+            
             if (BGFetcher.window_active) BGFetcher.IncrementWindowLineCounter();
             
             if (last_line_was_153) {
@@ -223,8 +227,6 @@ public class PPU {
                 
                 lcd_startup_scanline = false;
                 
-                CPU.RequestInterrupt(InterruptMask.VBlank);
-
                 if (!frame_ready) {
                     Array.Copy(frame_buffer_offscreen, frame_buffer, frame_buffer.Length);
                     frame_ready = true;
@@ -303,6 +305,9 @@ public class PPU {
             }
         }
         
+        if (dot == 0 && LY == 144) CPU.RequestInterrupt(InterruptMask.VBlank);
+        if (dot == 0 && LY == 144 && (_STAT & 0x20) != 0) CPU.RequestInterrupt(InterruptMask.LCD);
+        
         UpdateLYCCoincidence();
         HandleSTAT();
         dot++;
@@ -337,7 +342,7 @@ public class PPU {
         bool lyc_int_operand    = (LY == LYC) && ((_STAT & 0x40) != 0);
         
         bool current_stat_line = hblank_int_operand || vblank_int_operand || oam_int_operand || lyc_int_operand;
-
+        
         // Fire LCD interrupt if the STAT line has changed
         if (!old_stat_line && current_stat_line) {
             CPU.RequestInterrupt(InterruptMask.LCD); 
