@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using Microsoft.Xna.Framework;
@@ -185,6 +186,20 @@ public static class Interface {
         output += $"[Selected CPU Bus] {gb.gameboy.CPU.selected_bus}\n";
         return output;
     }
+
+    public static string PrintDMAState() {
+        if (gb.gameboy == null) return "";
+        string output = "[DMA]\n";
+
+        output += $"[Active]    {gb.gameboy.DMA.Active}\n";
+        output += $"[Requested] {gb.gameboy.DMA.Active}\n";
+        output += $"[Source]    {gb.gameboy.DMA.Source:X4}\n";
+        output += $"[Index]     {gb.gameboy.DMA.Index}\n";
+        output += $"[Cycle]     {gb.gameboy.DMA.Cycle}\n";
+        output += $"[Register]  {gb.gameboy.DMA.Register:X2}\n";
+        
+        return output;
+    }
     
     public static bool MouseHidden = false;
     
@@ -204,17 +219,22 @@ public static class Interface {
         
         //debug text
         Draw2DOverCanvas += (DrawShapesToSurface draw_shapes) => {
+            #if DEBUG
             Draw2D.text_shadow(
-                "[Frames/Ticks] " + Clock.frame_rate + "/" + Clock.tick_rate + "\n\n" + 
+                "[FPS/UPS] " + Clock.frame_rate + "/" + Clock.tick_rate + "\n\n" + 
                 PrintRegisters() + "\n" + 
                 PrintBusState() + "\n" +
                 PrintCartridgeInfo() + "\n" + 
                 PrintPPUInfo() + "\n" + 
+                PrintDMAState() + "\n" + 
                 PrintAPUInfo() + "\n" + 
                 PrintOPInfo() + "\n" + 
                 $"\n{(gb.Crashed ? " !CRASHED!" : "")} \n", 
                 
                 (Vector2i.One * 5), Color.White);
+            #else
+            Draw2D.text_shadow("[FPS/UPS] " + Clock.frame_rate + "/" + Clock.tick_rate + $"{(gb.ExecutionPaused ? "\n[PAUSED]\n" : "\n")}", (Vector2i.One * 5), Color.White);
+            #endif
         };
 
         // draw mouse cursor

@@ -21,7 +21,7 @@ public class DMA {
     public int Cycle => cycle_counter;
     
     public ushort Source => source;
-    
+    public int Index => rw_index;
     public byte Register = 0x00;
 
     public bool restarting = false;
@@ -54,7 +54,6 @@ public class DMA {
         }
         
         if (MemoryBus.BusState == RWState.Read) {
-            Debug.Print(MemoryBus.Data.ToString("X2"));
             MemoryBus.Data = Register;
         }
     }
@@ -122,7 +121,6 @@ public class DMA {
                 }
                 break;
         }
-
         
         cycle_counter++;
         if (cycle_counter == 4) cycle_counter = 0;

@@ -45,10 +45,12 @@ public class FemBoyGame : Game {
 
     internal static BindList
         emu_bind_list = [
+            #if DEBUG
             ("copy_debug_info", [Keys.Insert]),
             ("reload_rom", [Keys.R]),
             ("pause_execution", [Keys.P]),
             ("step_execution", [Keys.S]),
+            #endif
             ("show_menu", [Keys.Escape, XInputDigital.Guide]),
         ];
     
@@ -212,10 +214,10 @@ public class FemBoyGame : Game {
             menu_open = true;
         }
         
+        #if DEBUG
         if (emulator_binds.just_pressed("copy_debug_info")) {
             Interface.DebugInfoToClipboard();
         }
-        
         if (emulator_binds.just_pressed("reload_rom")) {
             gb.ReloadROM();
         }
@@ -228,6 +230,7 @@ public class FemBoyGame : Game {
         if (emulator_binds.held("step_execution")) {
             gb.StepExecution();
         }
+        #endif
         
         State.Render();
         

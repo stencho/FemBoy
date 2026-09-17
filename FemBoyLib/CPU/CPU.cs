@@ -222,7 +222,13 @@ public class CPU {
 
     public ConcurrentQueue<OpcodeInfo> LastNOpcodes = new();
     private int track_n_opcodes = 50;
+    
+    #if DEBUG
     public bool track_opcodes = true;
+    #else 
+    public bool track_opcodes = false;
+    #endif
+    
     private uint last_op_total_cycles = 0;
     private uint cycles_since_last_op = 0;
 
