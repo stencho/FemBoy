@@ -39,7 +39,7 @@ public class MemoryBus : IBus {
     public byte Data { get; set; }
     
     public BusTarget Target { get; set; }
-    public RWState BusState { get; set; }
+    public RWState BusState { get; set; } = RWState.Idle;
     
     public MemoryBusDriver Driver { get; set; } = MemoryBusDriver.CPU;
     
@@ -125,7 +125,7 @@ public class VideoBus : IBus {
     public byte Data { get; set; }
     
     public BusTarget Target { get; set; }
-    public RWState BusState { get; set; }
+    public RWState BusState { get; set; } = RWState.Idle;
     
     public VideoBusDriver Driver { get; set; } = VideoBusDriver.CPU;
 
