@@ -58,24 +58,13 @@ No easy way to select a ROM yet, either start with a ROM as a command line argum
 #### Mooneye
 | Pass | DNF   | Fail | Total |
 |:----:|:-----:|:----:|:-----:|
-|  43  |   9   |  15  |  66   |
+|  47  |   9   |  10  |  66   |
 
 - Currently excluding 9 tests which always fail on DMG 
-- All DNF tests appear to be due to DMA CPU bus blocking-related timing issues, leading to $FF opcodes trashing RAM
-- All DNF tests are also _timing tests, jp/ret/reti/etc
+- All DNF tests appear to be due to issues with PPU timing, or possibly DMA timing
+- DNF tests are also all _timing tests, jp/ret/reti/etc
 
 #### GBMicroTest
-| Pass |  DNF  | Fail  | Total |
-|:----:|:-----:|:-----:|:----:|
-| 221  | 29    | 272   | 513  |
-
-#### Numism
-| Stage 1 | Stage 2 | Stage 3 | Stage 4 | Stage 5 |
-|:-------:|:-------:|:-------:|:-------:|:-------:|
-|  7/10   |  7/10   |  7/10   |  8/10   |   1/1   |
-
-- Stage 1: Needs APU for 3/5/6
-- Stage 2: Needs APU for 16/17, needs OAM corruption bug for 20
-- Stage 3: Needs APU for 21, not certain why 23 fails (STAT japes), 26 fails due to very slight PPU timing issues
-- Stage 4: 33 is more STAT japes, 38 needs APU
-- Some of the passes ARE false positives due to the stubbed out APU
+| Pass |  DNF  | Fail | Total |
+|:----:|:-----:|:----:|:----:|
+| 234  | 29    | 250  | 513  |
