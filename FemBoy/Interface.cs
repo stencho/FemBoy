@@ -120,15 +120,16 @@ public static class Interface {
             string operand_one = op.operand_one != null ? $"{op.operand_one:X2}" : "  ";
             string operand_two = op.operand_two != null ? $"{op.operand_two:X2}" : "  ";
             //if (op.cycles > op.intended_cycles) Console.WriteLine($"TOO MANY CYCLES {op.name} {op.cycles} > {op.intended_cycles}");
-            output += $"{op.cycles,2}:{op.intended_cycles,2}{(op.cycles > op.intended_cycles ? "TOO MANY CYCLES!!!!!" : "")} {op.PC:X4} -> [{op.opcode:X2} {operand_one} {operand_two}] :: {op.name}\n";
-            if (op.name.StartsWith("CALL") || op.name.StartsWith("RET") || op.name.StartsWith("PUSH") || op.name.StartsWith("POP")) {
-                output += $"SP CHANGE {op.SP_before:X4} -> {op.SP_after:X4} \n";
-                
+            string cycles = $"{op.min_cycles,2}-{op.max_cycles}";
+            output += $"{op.cycles,2}:{cycles,-5} {op.PC:X4} -> [{op.opcode:X2} {operand_one} {operand_two}] :: {op.name}\n";
+            //if (op.name.StartsWith("CALL") || op.name.StartsWith("RET") || op.name.StartsWith("PUSH") || op.name.StartsWith("POP")) {
+                //output += $"  SP CHANGE {op.SP_before:X4} -> {op.SP_after:X4} \n";
+                /*
                 if (op.stack_after == null) 
                     output += $"STACK CHANGE {PrintStack(op.stack_before)}\n";
                 else 
-                    output += $"STACK CHANGE {PrintStack(op.stack_before)} -> {PrintStack(op.stack_after)}\n";
-            }
+                    output += $"STACK CHANGE {PrintStack(op.stack_before)} -> {PrintStack(op.stack_after)}\n";*/
+            //}
         }
         return output;
     }

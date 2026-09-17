@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using FemBoy.Debugging;
 
 namespace FemBoy;
 
@@ -121,9 +122,7 @@ public class CPU {
         ReadMonitor?.Invoke(address);
         
         if (gameboy.RAM.WithinVRAM(address)) {
-            if (video_bus.Driver != VideoBusDriver.CPU) {
-                return;
-            }
+            if (video_bus.Driver != VideoBusDriver.CPU) return;
 
             video_bus.Address = address;
             video_bus.BusState = RWState.Read;
@@ -152,7 +151,7 @@ public class CPU {
             return;
         }
 
-        if (memory_bus.Driver != MemoryBusDriver.CPU) {
+        if (!gameboy.RAM.WithinHRAM(address) && memory_bus.Driver != MemoryBusDriver.CPU) {
             selected_bus = SelectedBus.OpenBus;
             return;
         }
@@ -183,8 +182,7 @@ public class CPU {
         WriteMonitor?.Invoke(address, value);
         
         if (gameboy.RAM.WithinVRAM(address)) {
-            if (video_bus.Driver != VideoBusDriver.CPU)
-                return;
+            if (video_bus.Driver != VideoBusDriver.CPU) return;
 
             video_bus.Address = address;
             video_bus.BusState = RWState.Write;
@@ -225,7 +223,7 @@ public class CPU {
     
 
     public ConcurrentQueue<OpcodeInfo> LastNOpcodes = new();
-    private int track_n_opcodes = 30;
+    private int track_n_opcodes = 50;
     public bool track_opcodes = true;
     private uint last_op_total_cycles = 0;
     private uint cycles_since_last_op = 0;
@@ -268,7 +266,6 @@ public class CPU {
             _ime_enable_delay--;
             if (_ime_enable_delay == 0) interrupt_master_enable = true;
         }
-
         
         // not currently executing an instruction, so fetch the next one
         if (!executing_opcode) {
@@ -339,7 +336,7 @@ public class CPU {
 
     public void FinishOperation() {
         if (track_opcodes && Operations.current_operation != Operations.InterruptServicePipeline) {
-            current_op.cycles = (uint)(t_cycle + 4);
+            current_op.cycles = (byte)(t_cycle + 4);
             current_op.SP_after = Registers.SP;
         }
         
@@ -374,8 +371,12 @@ public class CPU {
         if (track_opcodes) {
             current_op = new OpcodeInfo(current_opcode);
             current_op.PC = (ushort)(Registers.PC - 1);
+            
+            if (current_op.operand_count > 0) current_op.operand_one = gameboy.ReadMemory(Registers.PC);
+            if (current_op.operand_count > 1) current_op.operand_two = gameboy.ReadMemory((ushort)(Registers.PC+1));
+            
             current_op.SP_before = Registers.SP;
-                
+            
             LastNOpcodes.Enqueue(current_op);
             if (LastNOpcodes.Count > track_n_opcodes) LastNOpcodes.TryDequeue(out _);
         }
