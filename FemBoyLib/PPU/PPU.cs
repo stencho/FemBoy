@@ -65,23 +65,8 @@ public class PPU {
         Array.Copy(frame_buffer_offscreen, frame_buffer, frame_buffer.Length);
     }
 
-    private byte _LY = 0x90;
-    private byte _LYC = 0x00;
-
-    public byte LY {
-        get => _LY;
-        set {
-            _LY = value;
-            UpdateLYCCoincidence();
-        }
-    }
-    public byte LYC {
-        get => _LYC;
-        set {
-            _LYC = value;
-            UpdateLYCCoincidence();
-        }
-    }
+    public byte LY = 0x00;
+    public byte LYC = 0x00;
     
     public byte SCX = 0x00;
     public byte SCY = 0x00;
@@ -154,35 +139,8 @@ public class PPU {
 
     private bool last_line_was_153 = false;
 
-    public void HandleBusRW() {
-        if (MemoryBus.BusState == RWState.Write) {
-            switch (MemoryBus.Address) {
-                case PPURegisterAddresses.LCDC: 
-                    bool lcd_old = LCDEnabled;
-                    LCDC = MemoryBus.Data;
-            
-                    // TURN ON LCD
-                    if (LCDEnabled && !lcd_old) {
-                        LCDOn();
-                    }
-            
-                    // TURN OFF LCD
-                    if (!LCDEnabled && lcd_old) {
-                        LCDOff();
-                    }
-                    break;
-                case PPURegisterAddresses.STAT: STAT = MemoryBus.Data; break;
-                case PPURegisterAddresses.SCY: SCY = MemoryBus.Data; break;
-                case PPURegisterAddresses.SCX: SCX = MemoryBus.Data; break;
-                case PPURegisterAddresses.LY: LY = 0x00; break;
-                case PPURegisterAddresses.LYC: LYC = MemoryBus.Data; break;
-                case PPURegisterAddresses.BGP: BGP = MemoryBus.Data; break;
-                case PPURegisterAddresses.OBP0: OBP0 = MemoryBus.Data; break;
-                case PPURegisterAddresses.OBP1: OBP1 = MemoryBus.Data; break;
-                case PPURegisterAddresses.WX: WX = MemoryBus.Data; break;
-                case PPURegisterAddresses.WY: WY = MemoryBus.Data; break;
-            }
-        }
+    void HandleBusRead() {
+        if (MemoryBus.Target != BusTarget.PPU) return; 
         
         if (MemoryBus.BusState == RWState.Read) {
             switch (MemoryBus.Address) {
@@ -198,18 +156,52 @@ public class PPU {
                 case PPURegisterAddresses.WX: MemoryBus.Data = WX; break;
                 case PPURegisterAddresses.WY: MemoryBus.Data = WY; break;
             }
+            MemoryBus.BusState = RWState.Idle;
         }
     }
     
+    void HandleBusWrite() {
+        if (MemoryBus.Target != BusTarget.PPU) return; 
+        
+        if (MemoryBus.BusState == RWState.Write) {
+            switch (MemoryBus.Address) {
+                case PPURegisterAddresses.LCDC: 
+                    bool lcd_old = LCDEnabled;
+                    LCDC = MemoryBus.Data;
+            
+                    // TURN ON LCD
+                    if (LCDEnabled && !lcd_old) LCDOn();
+            
+                    // TURN OFF LCD
+                    if (!LCDEnabled && lcd_old) LCDOff();
+                    
+                    break;
+                case PPURegisterAddresses.STAT: STAT = MemoryBus.Data; break;
+                case PPURegisterAddresses.SCY: SCY = MemoryBus.Data; break;
+                case PPURegisterAddresses.SCX: SCX = MemoryBus.Data; break;
+                case PPURegisterAddresses.LY: LY = 0x00; break;
+                case PPURegisterAddresses.LYC: LYC = MemoryBus.Data; break;
+                case PPURegisterAddresses.BGP: BGP = MemoryBus.Data; break;
+                case PPURegisterAddresses.OBP0: OBP0 = MemoryBus.Data; break;
+                case PPURegisterAddresses.OBP1: OBP1 = MemoryBus.Data; break;
+                case PPURegisterAddresses.WX: WX = MemoryBus.Data; break;
+                case PPURegisterAddresses.WY: WY = MemoryBus.Data; break;
+            }
+            
+            MemoryBus.BusState = RWState.Idle;
+        }
+    }
     public void Tick() {
-        if (!LCD_ON) return;
+        HandleBusWrite();
+        
+        if (!LCD_ON) goto bus_read;
         old_mode = mode;
         
         if (LY == 153) {
+            last_line_was_153 = true;
             if (dot == 4) {
                 dot = 0;
                 LY = 0;
-                last_line_was_153 = true;
             }
         } else if (dot == 456) {
             dot = 0;
@@ -222,7 +214,6 @@ public class PPU {
                 last_line_was_153 = false;
                 lcd_startup_scanline = false;
                 SetPPUMode(PPUMode.OAM_SEARCH_2);
-                
             } 
             
             if (LY == 144) {
@@ -254,6 +245,7 @@ public class PPU {
             } else {
                 if (dot == 80) SetPPUMode(PPUMode.LCD_TRANSFER_3);
             }
+            
         } else if (mode == PPUMode.LCD_TRANSFER_3) {
             if (pixels_drawn < 160) {
 
@@ -311,9 +303,13 @@ public class PPU {
             }
         }
         
+        UpdateLYCCoincidence();
         HandleSTAT();
         dot++;
         LCD_just_enabled = false;
+        
+        bus_read:
+        HandleBusRead();
     }
 
     void SetPPUMode(PPUMode mode) {
@@ -323,13 +319,13 @@ public class PPU {
             VideoBus.Driver = VideoBusDriver.PPU;
         else
             VideoBus.Driver = VideoBusDriver.CPU;
-        
+
         _STAT &= 0xFC;
         _STAT |= (byte)mode;
     }
     
     void UpdateLYCCoincidence() {
-        if (LCDEnabled && LY == LYC) _STAT |= 0x04;
+        if (LCD_ON && !last_line_was_153 && LY == LYC) _STAT |= 0x04;
         else _STAT &= 0xFB;
     }
     
@@ -343,7 +339,7 @@ public class PPU {
         bool current_stat_line = hblank_int_operand || vblank_int_operand || oam_int_operand || lyc_int_operand;
 
         // Fire LCD interrupt if the STAT line has changed
-        if (!old_stat_line && current_stat_line && !LCD_just_enabled) {
+        if (!old_stat_line && current_stat_line) {
             CPU.RequestInterrupt(InterruptMask.LCD); 
         }
 

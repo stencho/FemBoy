@@ -68,11 +68,11 @@ public class MemoryBus : IBus {
             hram_side_channel.BusState = RWState.Idle;
         }
         
-        if (BusState == RWState.Idle || Target == BusTarget.Timer) return;
+        if (BusState == RWState.Idle || Target == BusTarget.Timer || Target == BusTarget.PPU) return;
         
         switch (Target) {
             case BusTarget.PPU:
-                gameboy.PPU.HandleBusRW();
+                //gameboy.PPU.HandleBusRW();
                 break;
             case BusTarget.Timer:
                 //gameboy.Timer.HandleBusRW();

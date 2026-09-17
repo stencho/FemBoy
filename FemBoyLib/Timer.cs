@@ -64,7 +64,9 @@ public class Timer {
         divider = value;
     }
 
-    public void HandleBusR() {
+    public void HandleBusRead() {
+        if (MemoryBus.Target != BusTarget.Timer) return; 
+
         if (MemoryBus.BusState == RWState.Read) {
             switch (MemoryBus.Address) {
                 case TimerRegisterAddresses.DIV:
@@ -84,7 +86,9 @@ public class Timer {
         }
     }
     
-    public void HandleBusW() {
+    public void HandleBusWrite() {
+        if (MemoryBus.Target != BusTarget.Timer) return; 
+        
         if (MemoryBus.BusState == RWState.Write) {
             switch (MemoryBus.Address) {
                 case TimerRegisterAddresses.DIV:
@@ -105,7 +109,7 @@ public class Timer {
     }
     
     public void Tick() {
-        if (MemoryBus.Target == BusTarget.Timer) HandleBusW();
+        HandleBusWrite();
         
         bool old_timer_signal = GetTimerSignal();
         divider++;
@@ -127,7 +131,7 @@ public class Timer {
             TIMA_reload_delay++;
         }
         
-        if (MemoryBus.Target == BusTarget.Timer) HandleBusR();
+        HandleBusRead();
     }
 
 
