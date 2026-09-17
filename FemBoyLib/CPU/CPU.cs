@@ -145,13 +145,12 @@ public class CPU {
             return;
         }
 
-
         if (gameboy.RAM.WithinOAM(address) && gameboy.PPU.Mode is PPUMode.LCD_TRANSFER_3 or PPUMode.OAM_SEARCH_2) {
             selected_bus = SelectedBus.OpenBus;
             return;
         }
 
-        if (!gameboy.RAM.WithinHRAM(address) && memory_bus.Driver != MemoryBusDriver.CPU) {
+        if (memory_bus.Driver != MemoryBusDriver.CPU) {
             selected_bus = SelectedBus.OpenBus;
             return;
         }
@@ -203,7 +202,6 @@ public class CPU {
             memory_bus.hram_side_channel.Data = value;
             memory_bus.hram_side_channel.Address = address;
             memory_bus.hram_side_channel.BusState = RWState.Write;
-            selected_bus = SelectedBus.HRAMSideChannel;
             return;
         }
         
@@ -229,20 +227,6 @@ public class CPU {
     private uint cycles_since_last_op = 0;
 
     private OpcodeInfo current_op;
-    
-    private StreamWriter? trace;
-
-    public void StartTrace(string path) {
-        trace?.Dispose();
-        trace = new StreamWriter(path, false);
-        trace.AutoFlush = false;
-    }
-
-    public void StopTrace() {
-        trace?.Flush();
-        trace?.Dispose();
-        trace = null;
-    }
     
     public void Tick() {
         // If there isn't an interrupt pending, and we're halted, do nothing this t-cycle
